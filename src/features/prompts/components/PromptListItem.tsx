@@ -15,6 +15,8 @@ import type { MenuProps } from 'antd';
 import {
   StarOutlined,
   StarFilled,
+  PushpinOutlined,
+  PushpinFilled,
   MoreOutlined,
   EditOutlined,
   CopyOutlined,
@@ -53,7 +55,7 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
   onUseVariables,
 }) => {
   const { token } = theme.useToken();
-  const { toggleFavorite, archivePrompt, restorePrompt, duplicatePrompt } = usePromptActions();
+  const { toggleFavorite, togglePin, archivePrompt, restorePrompt, duplicatePrompt } = usePromptActions();
   const deleteMutation = useDeletePrompt();
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
@@ -61,7 +63,18 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
     toggleFavorite(prompt.id, !prompt.isFavorite);
   };
 
+  const handlePinClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    togglePin(prompt.id, !prompt.isPinned);
+  };
+
   const overflowMenuItems: MenuProps['items'] = [
+    {
+      key: 'pin',
+      icon: prompt.isPinned ? <PushpinFilled style={{ color: token.colorPrimary }} /> : <PushpinOutlined />,
+      label: prompt.isPinned ? 'Unpin from Top' : 'Pin to Top',
+      onClick: () => togglePin(prompt.id, !prompt.isPinned),
+    },
     {
       key: 'edit',
       icon: <EditOutlined />,
@@ -115,6 +128,7 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
         backgroundColor: token.colorBgContainer,
         borderRadius: token.borderRadius,
         border: `1px solid ${isSelected ? token.colorPrimaryBorder : token.colorBorderSecondary}`,
+        borderLeft: prompt.isPinned ? `3px solid ${token.colorPrimary}` : undefined,
         marginBottom: 8,
         cursor: 'pointer',
         transition: 'all 0.15s ease',
@@ -122,9 +136,9 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
       className="prompt-list-item hover:border-gray-400"
     >
       <Flex vertical style={{ width: '100%' }} gap={8}>
-        {/* Top Header: Checkbox, Favorite, Title, Actions */}
+        {/* Top Header: Checkbox, Favorite, Pin, Title, Actions */}
         <Flex justify="space-between" align="flex-start" gap={12}>
-          <Flex align="center" gap={10} style={{ minWidth: 0 }}>
+          <Flex align="center" gap={8} style={{ minWidth: 0, flexWrap: 'wrap' }}>
             {onToggleSelect && (
               <div onClick={(e) => e.stopPropagation()}>
                 <Checkbox
@@ -134,20 +148,39 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
               </div>
             )}
 
-            <Button
-              type="text"
-              size="small"
-              icon={
-                prompt.isFavorite ? (
-                  <StarFilled style={{ color: '#faad14', fontSize: 16 }} />
-                ) : (
-                  <StarOutlined style={{ color: token.colorTextSecondary, fontSize: 16 }} />
-                )
-              }
-              onClick={handleFavoriteClick}
-              aria-label={prompt.isFavorite ? 'Unfavorite' : 'Favorite'}
-              style={{ padding: 0, width: 24, height: 24 }}
-            />
+            <Tooltip title={prompt.isPinned ? 'Unpin from top' : 'Pin to top'}>
+              <Button
+                type="text"
+                size="small"
+                icon={
+                  prompt.isPinned ? (
+                    <PushpinFilled style={{ color: token.colorPrimary, fontSize: 16 }} />
+                  ) : (
+                    <PushpinOutlined style={{ color: token.colorTextSecondary, fontSize: 16 }} />
+                  )
+                }
+                onClick={handlePinClick}
+                aria-label={prompt.isPinned ? 'Unpin from top' : 'Pin to top'}
+                style={{ padding: 0, width: 24, height: 24 }}
+              />
+            </Tooltip>
+
+            <Tooltip title={prompt.isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
+              <Button
+                type="text"
+                size="small"
+                icon={
+                  prompt.isFavorite ? (
+                    <StarFilled style={{ color: '#faad14', fontSize: 16 }} />
+                  ) : (
+                    <StarOutlined style={{ color: token.colorTextSecondary, fontSize: 16 }} />
+                  )
+                }
+                onClick={handleFavoriteClick}
+                aria-label={prompt.isFavorite ? 'Unfavorite' : 'Favorite'}
+                style={{ padding: 0, width: 24, height: 24 }}
+              />
+            </Tooltip>
 
             <Text
               strong
@@ -160,6 +193,17 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
             >
               {prompt.title}
             </Text>
+
+            {prompt.isPinned && (
+              <Tag
+                color="blue"
+                variant="filled"
+                icon={<PushpinOutlined />}
+                style={{ fontSize: 11, lineHeight: '18px', padding: '0 6px' }}
+              >
+                Pinned
+              </Tag>
+            )}
 
             {prompt.hasVariables && (
               <Tag color="cyan" style={{ fontSize: 11, lineHeight: '18px', padding: '0 6px' }}>

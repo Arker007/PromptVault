@@ -8,6 +8,7 @@ import {
   Space,
   Typography,
   Tooltip,
+  Tag,
   theme,
 } from 'antd';
 import {
@@ -89,6 +90,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         position: 'sticky',
         top: 0,
         zIndex: 40,
+        height: 60,
+        lineHeight: 'normal',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -112,7 +115,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           onClick={onOpenSearch}
           style={{
             width: isMobile ? 180 : 340,
-            display: 'flex',
+            height: 36,
+            display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             color: token.colorTextSecondary,
@@ -121,21 +125,40 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             padding: '0 12px',
           }}
         >
-          <Space orientation="horizontal" size={8}>
-            <SearchOutlined />
-            <span style={{ fontSize: 13 }}>Search prompts, tags...</span>
-          </Space>
-          <kbd
+          <Flex align="center" gap={8} style={{ minWidth: 0 }}>
+            <SearchOutlined style={{ fontSize: 14 }} />
+            <Text
+              style={{
+                fontSize: 13,
+                color: token.colorTextTertiary,
+                lineHeight: 'normal',
+              }}
+              ellipsis
+            >
+              Search prompts, tags...
+            </Text>
+          </Flex>
+
+          <Tag
+            variant="outlined"
             style={{
+              margin: 0,
               fontSize: 11,
-              padding: '2px 5px',
+              fontWeight: 500,
+              lineHeight: '18px',
+              height: 20,
+              padding: '0 6px',
               backgroundColor: token.colorBgContainer,
-              border: `1px solid ${token.colorBorderSecondary}`,
+              borderColor: token.colorBorderSecondary,
               borderRadius: 4,
+              color: token.colorTextSecondary,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
             ⌘K
-          </kbd>
+          </Tag>
         </Button>
       </Flex>
 
@@ -153,10 +176,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 
         {/* User Dropdown */}
         <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
-          <Button type="text" style={{ padding: '0 4px', height: 40 }}>
-            <Space orientation="horizontal" size={8}>
+          <Button
+            type="text"
+            style={{
+              padding: '0 8px',
+              height: 36,
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}
+          >
+            <Flex align="center" gap={8}>
               <Avatar
-                size={30}
+                size={28}
                 style={{
                   backgroundColor: token.colorPrimary,
                   fontSize: 13,
@@ -166,11 +197,19 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                 {user?.displayName ? user.displayName.slice(0, 1).toUpperCase() : 'U'}
               </Avatar>
               {!isMobile && (
-                <Text style={{ fontSize: 13, maxWidth: 120 }} ellipsis>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    maxWidth: 120,
+                    lineHeight: 'normal',
+                    color: token.colorText,
+                  }}
+                  ellipsis
+                >
                   {user?.displayName}
                 </Text>
               )}
-            </Space>
+            </Flex>
           </Button>
         </Dropdown>
       </Flex>

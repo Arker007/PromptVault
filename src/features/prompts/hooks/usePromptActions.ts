@@ -19,6 +19,19 @@ export function usePromptActions() {
     onError: () => message.error('Failed to update favorite status'),
   });
 
+  const pinMutation = useMutation({
+    mutationFn: ({ id, isPinned }: { id: string; isPinned?: boolean }) =>
+      promptApi.togglePin(id, isPinned),
+    onSuccess: (res, vars) => {
+      message.success(res.isPinned ? 'Prompt pinned to top' : 'Prompt unpinned');
+      queryClient.setQueryData(promptKeys.detail(vars.id), (old: any) =>
+        old ? { ...old, isPinned: res.isPinned } : old
+      );
+      queryClient.invalidateQueries({ queryKey: promptKeys.lists() });
+    },
+    onError: () => message.error('Failed to update pin status'),
+  });
+
   const archiveMutation = useMutation({
     mutationFn: (id: string) => promptApi.archivePrompt(id),
     onSuccess: (_, id) => {
@@ -55,6 +68,8 @@ export function usePromptActions() {
   return {
     toggleFavorite: (id: string, isFavorite?: boolean) => favoriteMutation.mutate({ id, isFavorite }),
     isTogglingFavorite: favoriteMutation.isPending,
+    togglePin: (id: string, isPinned?: boolean) => pinMutation.mutate({ id, isPinned }),
+    isTogglingPin: pinMutation.isPending,
     archivePrompt: (id: string) => archiveMutation.mutate(id),
     isArchiving: archiveMutation.isPending,
     restorePrompt: (id: string) => restoreMutation.mutate(id),

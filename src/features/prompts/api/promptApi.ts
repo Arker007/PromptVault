@@ -15,6 +15,7 @@ export interface CreatePromptPayload {
   collectionId?: string | null;
   tags?: string[];
   isFavorite?: boolean;
+  isPinned?: boolean;
 }
 
 export interface UpdatePromptPayload {
@@ -25,6 +26,7 @@ export interface UpdatePromptPayload {
   collectionId?: string | null;
   tags?: string[];
   isFavorite?: boolean;
+  isPinned?: boolean;
   isArchived?: boolean;
 }
 
@@ -46,6 +48,11 @@ export const promptApi = {
   toggleFavorite: (id: string, isFavorite?: boolean) =>
     apiClient.post<{ success: boolean; isFavorite: boolean }>(`/api/prompts/${id}/favorite`, {
       isFavorite,
+    }),
+
+  togglePin: (id: string, isPinned?: boolean) =>
+    apiClient.post<{ success: boolean; isPinned: boolean }>(`/api/prompts/${id}/pin`, {
+      isPinned,
     }),
 
   archivePrompt: (id: string) =>
@@ -72,7 +79,7 @@ export const promptApi = {
       `/api/prompts/${promptId}/versions/${versionId}/restore`
     ),
 
-  bulkAction: (action: 'delete' | 'archive' | 'restore' | 'addTag', ids: string[], data?: any) =>
+  bulkAction: (action: 'delete' | 'archive' | 'restore' | 'addTag' | 'pin' | 'unpin', ids: string[], data?: any) =>
     apiClient.post<{ success: boolean; count: number; action: string }>('/api/prompts/bulk', {
       action,
       ids,

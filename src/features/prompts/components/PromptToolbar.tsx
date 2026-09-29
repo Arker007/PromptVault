@@ -17,6 +17,7 @@ import {
   InboxOutlined,
   RollbackOutlined,
   TagOutlined,
+  PushpinOutlined,
 } from '@ant-design/icons';
 import { PromptQueryParams, CategoryItem, CollectionItem, TagItem } from '@/shared/types/index.ts';
 
@@ -28,7 +29,7 @@ interface PromptToolbarProps {
   tags: TagItem[];
   onOpenAdvancedFilters: () => void;
   selectedCount: number;
-  onBulkAction: (action: 'delete' | 'archive' | 'restore' | 'addTag') => void;
+  onBulkAction: (action: 'delete' | 'archive' | 'restore' | 'addTag' | 'pin' | 'unpin') => void;
   onClearSelection: () => void;
   isArchivedView?: boolean;
 }
@@ -87,6 +88,24 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
           </Space>
 
           <Space orientation="horizontal" size={8}>
+            {!isArchivedView && (
+              <>
+                <Button
+                  size="small"
+                  icon={<PushpinOutlined />}
+                  onClick={() => onBulkAction('pin')}
+                >
+                  Pin
+                </Button>
+                <Button
+                  size="small"
+                  onClick={() => onBulkAction('unpin')}
+                >
+                  Unpin
+                </Button>
+              </>
+            )}
+
             {isArchivedView ? (
               <Button
                 size="small"

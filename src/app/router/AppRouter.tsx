@@ -26,6 +26,7 @@ export const AppRouter: React.FC = () => {
         >
           <Route path="/" element={<Navigate to="/prompts" replace />} />
           <Route path="/prompts" element={<PromptLibraryPage preset="all" />} />
+          <Route path="/prompts/pinned" element={<PromptLibraryPage preset="pinned" />} />
           <Route path="/prompts/favorites" element={<PromptLibraryPage preset="favorites" />} />
           <Route path="/prompts/recent" element={<PromptLibraryPage preset="recent" />} />
           <Route path="/prompts/archived" element={<PromptLibraryPage preset="archived" />} />

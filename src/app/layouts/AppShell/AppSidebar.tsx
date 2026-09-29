@@ -3,6 +3,7 @@ import { Layout, Menu, Flex, Typography, theme } from 'antd';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   FileTextOutlined,
+  PushpinOutlined,
   StarOutlined,
   HistoryOutlined,
   InboxOutlined,
@@ -11,6 +12,8 @@ import {
   TagsOutlined,
   SettingOutlined,
   KeyOutlined,
+  LeftOutlined,
+  RightOutlined,
 } from '@ant-design/icons';
 import type { ItemType } from 'antd/es/menu/interface';
 
@@ -29,6 +32,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse })
 
   const getSelectedKey = (): string => {
     const path = location.pathname;
+    if (path.startsWith('/prompts/pinned')) return '/prompts/pinned';
     if (path.startsWith('/prompts/favorites')) return '/prompts/favorites';
     if (path.startsWith('/prompts/recent')) return '/prompts/recent';
     if (path.startsWith('/prompts/archived')) return '/prompts/archived';
@@ -50,6 +54,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse })
           icon: <FileTextOutlined />,
           label: 'All Prompts',
           onClick: () => navigate('/prompts'),
+        },
+        {
+          key: '/prompts/pinned',
+          icon: <PushpinOutlined />,
+          label: 'Pinned',
+          onClick: () => navigate('/prompts/pinned'),
         },
         {
           key: '/prompts/favorites',
@@ -123,32 +133,62 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({ collapsed, onCollapse })
         top: 0,
         left: 0,
         zIndex: 50,
+        backgroundColor: token.colorBgContainer,
         borderRight: `1px solid ${token.colorBorderSecondary}`,
       }}
+      trigger={
+        <div
+          style={{
+            backgroundColor: token.colorBgContainer,
+            color: token.colorTextSecondary,
+            borderTop: `1px solid ${token.colorBorderSecondary}`,
+            borderRight: `1px solid ${token.colorBorderSecondary}`,
+            height: 48,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+        >
+          {collapsed ? <RightOutlined style={{ fontSize: 12 }} /> : <LeftOutlined style={{ fontSize: 12 }} />}
+        </div>
+      }
     >
       <Flex
         align="center"
         justify={collapsed ? 'center' : 'flex-start'}
         style={{
-          height: 64,
+          height: 60,
           padding: collapsed ? '0' : '0 20px',
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
+          backgroundColor: token.colorBgContainer,
         }}
       >
         <KeyOutlined style={{ fontSize: 20, color: token.colorPrimary, marginRight: collapsed ? 0 : 10 }} />
         {!collapsed && (
-          <Text strong style={{ fontSize: 16, letterSpacing: -0.2 }}>
+          <Text strong style={{ fontSize: 16, letterSpacing: -0.2, color: token.colorText }}>
             PromptVault
           </Text>
         )}
       </Flex>
 
-      <div style={{ height: 'calc(100vh - 64px - 48px)', overflowY: 'auto' }}>
+      <div
+        style={{
+          height: 'calc(100vh - 60px - 48px)',
+          overflowY: 'auto',
+          backgroundColor: token.colorBgContainer,
+        }}
+      >
         <Menu
           mode="inline"
           selectedKeys={[getSelectedKey()]}
           items={menuItems}
-          style={{ borderRight: 0, paddingTop: 8 }}
+          style={{
+            borderRight: 0,
+            paddingTop: 8,
+            backgroundColor: token.colorBgContainer,
+          }}
         />
       </div>
     </Sider>

@@ -3,6 +3,7 @@ import { Drawer, Menu, Flex, Typography, theme } from 'antd';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   FileTextOutlined,
+  PushpinOutlined,
   StarOutlined,
   HistoryOutlined,
   InboxOutlined,
@@ -33,6 +34,7 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ open, onClos
 
   const getSelectedKey = (): string => {
     const path = location.pathname;
+    if (path.startsWith('/prompts/pinned')) return '/prompts/pinned';
     if (path.startsWith('/prompts/favorites')) return '/prompts/favorites';
     if (path.startsWith('/prompts/recent')) return '/prompts/recent';
     if (path.startsWith('/prompts/archived')) return '/prompts/archived';
@@ -54,6 +56,12 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ open, onClos
           icon: <FileTextOutlined />,
           label: 'All Prompts',
           onClick: () => handleNav('/prompts'),
+        },
+        {
+          key: '/prompts/pinned',
+          icon: <PushpinOutlined />,
+          label: 'Pinned',
+          onClick: () => handleNav('/prompts/pinned'),
         },
         {
           key: '/prompts/favorites',

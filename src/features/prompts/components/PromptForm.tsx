@@ -50,6 +50,7 @@ export const PromptForm: React.FC<PromptFormProps> = ({
           ? initialValues.tags.map((t: any) => (typeof t === 'string' ? t : t.name))
           : [],
         isFavorite: Boolean(initialValues.isFavorite),
+        isPinned: Boolean(initialValues.isPinned),
       });
       const initialDetected = extractTitleFromContent(initialValues.content || '');
       setDetectedTitle(initialDetected);
@@ -167,9 +168,15 @@ export const PromptForm: React.FC<PromptFormProps> = ({
         />
       </Form.Item>
 
-      <Form.Item name="isFavorite" label="Star as Favorite" valuePropName="checked">
-        <Switch />
-      </Form.Item>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+        <Form.Item name="isPinned" label="Pin to Top" valuePropName="checked" extra="Pinned prompts appear at the top of your library">
+          <Switch />
+        </Form.Item>
+
+        <Form.Item name="isFavorite" label="Star as Favorite" valuePropName="checked">
+          <Switch />
+        </Form.Item>
+      </div>
     </Form>
   );
 };

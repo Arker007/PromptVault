@@ -339,6 +339,7 @@ apiRouter.get('/prompts', requireAuth, async (req: AuthRequest, res: Response) =
     const collection = (req.query.collection as string)?.trim() || '';
     const tagsParam = (req.query.tags as string)?.trim() || '';
     const favorite = req.query.favorite as string;
+    const pinned = req.query.pinned as string;
     const archived = req.query.archived as string;
     const sort = (req.query.sort as string)?.trim() || 'recently_updated';
     const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
@@ -360,6 +361,11 @@ apiRouter.get('/prompts', requireAuth, async (req: AuthRequest, res: Response) =
     // Favorite filter
     if (favorite === 'true' || favorite === '1') {
       whereClauses.push('p.is_favorite = 1');
+    }
+
+    // Pinned filter
+    if (pinned === 'true' || pinned === '1') {
+      whereClauses.push('p.is_pinned = 1');
     }
 
     // Category filter (can be ID or name)
@@ -457,6 +463,7 @@ apiRouter.get('/prompts', requireAuth, async (req: AuthRequest, res: Response) =
         SUBSTR(p.content, 1, 280) as preview,
         p.content,
         p.is_favorite as isFavorite,
+        p.is_pinned as isPinned,
         p.is_archived as isArchived,
         p.copy_count as copyCount,
         p.last_copied_at as lastCopiedAt,
@@ -471,7 +478,7 @@ apiRouter.get('/prompts', requireAuth, async (req: AuthRequest, res: Response) =
       LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN collections col ON p.collection_id = col.id
       WHERE ${whereSql}
-      ORDER BY ${orderBy}
+      ORDER BY p.is_pinned DESC, ${orderBy}
       LIMIT ? OFFSET ?
     `;
 
@@ -510,6 +517,7 @@ apiRouter.get('/prompts', requireAuth, async (req: AuthRequest, res: Response) =
         preview: r.preview || '',
         content: r.content, // available if needed
         isFavorite: Boolean(r.isFavorite),
+        isPinned: Boolean(r.isPinned),
         isArchived: Boolean(r.isArchived),
         copyCount: r.copyCount || 0,
         lastCopiedAt: r.lastCopiedAt || null,
@@ -592,6 +600,7 @@ apiRouter.get('/prompts/:id', requireAuth, async (req: AuthRequest, res: Respons
       description: p.description || '',
       content: p.content,
       isFavorite: Boolean(p.is_favorite),
+      isPinned: Boolean(p.is_pinned),
       isArchived: Boolean(p.is_archived),
       copyCount: p.copy_count || 0,
       lastCopiedAt: p.last_copied_at || null,
@@ -612,7 +621,7 @@ apiRouter.get('/prompts/:id', requireAuth, async (req: AuthRequest, res: Respons
 
 apiRouter.post('/prompts', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const { title, description, content, categoryId, collectionId, tags, isFavorite } = req.body;
+    const { title, description, content, categoryId, collectionId, tags, isFavorite, isPinned } = req.body;
     if (!title || !title.trim()) {
       return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'Title is required' });
     }
@@ -627,8 +636,8 @@ apiRouter.post('/prompts', requireAuth, async (req: AuthRequest, res: Response) 
 
     runQuery(
       db,
-      `INSERT INTO prompts (id, user_id, category_id, collection_id, title, description, content, is_favorite, is_archived, copy_count, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+      `INSERT INTO prompts (id, user_id, category_id, collection_id, title, description, content, is_favorite, is_pinned, is_archived, copy_count, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
       [
         promptId,
         userId,
@@ -638,6 +647,7 @@ apiRouter.post('/prompts', requireAuth, async (req: AuthRequest, res: Response) 
         description ? description.trim() : null,
         content.trim(),
         isFavorite ? 1 : 0,
+        isPinned ? 1 : 0,
         now,
         now,
       ]
@@ -687,7 +697,7 @@ apiRouter.patch('/prompts/:id', requireAuth, async (req: AuthRequest, res: Respo
   try {
     const promptId = req.params.id;
     const userId = req.userId!;
-    const { title, description, content, categoryId, collectionId, tags, isFavorite, isArchived } = req.body;
+    const { title, description, content, categoryId, collectionId, tags, isFavorite, isPinned, isArchived } = req.body;
 
     const db = await getDb();
     const existing = queryOne<any>(db, 'SELECT * FROM prompts WHERE id = ? AND user_id = ?', [promptId, userId]);
@@ -702,6 +712,7 @@ apiRouter.patch('/prompts/:id', requireAuth, async (req: AuthRequest, res: Respo
     const updatedCatId = categoryId !== undefined ? categoryId || null : existing.category_id;
     const updatedColId = collectionId !== undefined ? collectionId || null : existing.collection_id;
     const updatedFav = isFavorite !== undefined ? (isFavorite ? 1 : 0) : existing.is_favorite;
+    const updatedPin = isPinned !== undefined ? (isPinned ? 1 : 0) : existing.is_pinned;
     const updatedArch = isArchived !== undefined ? (isArchived ? 1 : 0) : existing.is_archived;
 
     // Check if content or title changed -> create new version!
@@ -710,9 +721,9 @@ apiRouter.patch('/prompts/:id', requireAuth, async (req: AuthRequest, res: Respo
     runQuery(
       db,
       `UPDATE prompts 
-       SET title = ?, description = ?, content = ?, category_id = ?, collection_id = ?, is_favorite = ?, is_archived = ?, updated_at = ?
+       SET title = ?, description = ?, content = ?, category_id = ?, collection_id = ?, is_favorite = ?, is_pinned = ?, is_archived = ?, updated_at = ?
        WHERE id = ? AND user_id = ?`,
-      [updatedTitle, updatedDesc, updatedContent, updatedCatId, updatedColId, updatedFav, updatedArch, now, promptId, userId]
+      [updatedTitle, updatedDesc, updatedContent, updatedCatId, updatedColId, updatedFav, updatedPin, updatedArch, now, promptId, userId]
     );
 
     if (contentChanged) {
@@ -809,6 +820,35 @@ apiRouter.post('/prompts/:id/favorite', requireAuth, async (req: AuthRequest, re
     ]);
 
     return res.json({ success: true, isFavorite: Boolean(nextFav) });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+apiRouter.post('/prompts/:id/pin', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const promptId = req.params.id;
+    const userId = req.userId!;
+    const db = await getDb();
+
+    const p = queryOne<{ is_pinned: number }>(db, 'SELECT is_pinned FROM prompts WHERE id = ? AND user_id = ?', [
+      promptId,
+      userId,
+    ]);
+    if (!p) {
+      return res.status(404).json({ code: 'NOT_FOUND', message: 'Prompt not found' });
+    }
+
+    const nextPin = req.body.isPinned !== undefined ? (req.body.isPinned ? 1 : 0) : p.is_pinned === 1 ? 0 : 1;
+    const now = new Date().toISOString();
+    runQuery(db, 'UPDATE prompts SET is_pinned = ?, updated_at = ? WHERE id = ? AND user_id = ?', [
+      nextPin,
+      now,
+      promptId,
+      userId,
+    ]);
+
+    return res.json({ success: true, isPinned: Boolean(nextPin) });
   } catch (err: any) {
     return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
   }
@@ -1047,6 +1087,24 @@ apiRouter.post('/prompts/bulk', requireAuth, async (req: AuthRequest, res: Respo
         [now, ...ids, userId]
       );
       return res.json({ success: true, count: ids.length, action: 'restore' });
+    }
+
+    if (action === 'pin') {
+      runQuery(
+        db,
+        `UPDATE prompts SET is_pinned = 1, updated_at = ? WHERE id IN (${inClause}) AND user_id = ?`,
+        [now, ...ids, userId]
+      );
+      return res.json({ success: true, count: ids.length, action: 'pin' });
+    }
+
+    if (action === 'unpin') {
+      runQuery(
+        db,
+        `UPDATE prompts SET is_pinned = 0, updated_at = ? WHERE id IN (${inClause}) AND user_id = ?`,
+        [now, ...ids, userId]
+      );
+      return res.json({ success: true, count: ids.length, action: 'unpin' });
     }
 
     if (action === 'addTag' && data?.tag) {

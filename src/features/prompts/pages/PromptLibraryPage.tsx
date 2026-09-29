@@ -25,7 +25,7 @@ import {
 } from '@/shared/types/index.ts';
 
 interface PromptLibraryPageProps {
-  preset?: 'all' | 'favorites' | 'recent' | 'archived';
+  preset?: 'all' | 'favorites' | 'pinned' | 'recent' | 'archived';
 }
 
 export const PromptLibraryPage: React.FC<PromptLibraryPageProps> = ({ preset = 'all' }) => {
@@ -58,10 +58,14 @@ export const PromptLibraryPage: React.FC<PromptLibraryPageProps> = ({ preset = '
     const created_to = searchParams.get('created_to') || undefined;
 
     let favorite = searchParams.get('favorite') || undefined;
+    let pinned = searchParams.get('pinned') || undefined;
     let archived = searchParams.get('archived') || undefined;
 
     if (preset === 'favorites') {
       favorite = 'true';
+      archived = 'false';
+    } else if (preset === 'pinned') {
+      pinned = 'true';
       archived = 'false';
     } else if (preset === 'recent') {
       archived = 'false';
@@ -80,6 +84,7 @@ export const PromptLibraryPage: React.FC<PromptLibraryPageProps> = ({ preset = '
       page,
       pageSize,
       favorite,
+      pinned,
       archived,
       has_variables,
       created_from,
@@ -153,8 +158,13 @@ export const PromptLibraryPage: React.FC<PromptLibraryPageProps> = ({ preset = '
 
   // Bulk actions mutation
   const bulkMutation = useMutation({
-    mutationFn: ({ action, ids }: { action: 'delete' | 'archive' | 'restore'; ids: string[] }) =>
-      promptApi.bulkAction(action, ids),
+    mutationFn: ({
+      action,
+      ids,
+    }: {
+      action: 'delete' | 'archive' | 'restore' | 'addTag' | 'pin' | 'unpin';
+      ids: string[];
+    }) => promptApi.bulkAction(action, ids),
     onSuccess: (res) => {
       message.success(`Successfully updated ${res.count} prompt(s)`);
       setSelectedIds([]);
@@ -170,6 +180,11 @@ export const PromptLibraryPage: React.FC<PromptLibraryPageProps> = ({ preset = '
   // Preset headers
   const getHeaderInfo = () => {
     switch (preset) {
+      case 'pinned':
+        return {
+          title: 'Pinned Prompts',
+          description: 'Key prompts pinned to the top of your workspace for immediate access.',
+        };
       case 'favorites':
         return {
           title: 'Favorite Prompts',

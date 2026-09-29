@@ -19,6 +19,8 @@ import type { MenuProps } from 'antd';
 import {
   StarOutlined,
   StarFilled,
+  PushpinOutlined,
+  PushpinFilled,
   MoreOutlined,
   EditOutlined,
   CopyOutlined,
@@ -55,7 +57,7 @@ export const PromptDrawer: React.FC<PromptDrawerProps> = ({
 }) => {
   const { data: prompt, isLoading, isError } = usePrompt(promptId);
   const { copyPrompt, isCopying } = useCopyPrompt();
-  const { toggleFavorite, archivePrompt, restorePrompt, duplicatePrompt } = usePromptActions();
+  const { toggleFavorite, togglePin, archivePrompt, restorePrompt, duplicatePrompt } = usePromptActions();
   const deleteMutation = useDeletePrompt();
   const { token } = theme.useToken();
 
@@ -65,6 +67,12 @@ export const PromptDrawer: React.FC<PromptDrawerProps> = ({
   if (!promptId) return null;
 
   const overflowMenuItems: MenuProps['items'] = [
+    {
+      key: 'pin',
+      icon: prompt?.isPinned ? <PushpinFilled style={{ color: token.colorPrimary }} /> : <PushpinOutlined />,
+      label: prompt?.isPinned ? 'Unpin from Top' : 'Pin to Top',
+      onClick: () => prompt && togglePin(prompt.id, !prompt.isPinned),
+    },
     {
       key: 'duplicate',
       icon: <CopyOutlined />,
@@ -120,22 +128,39 @@ export const PromptDrawer: React.FC<PromptDrawerProps> = ({
           prompt ? (
             <Flex justify="space-between" align="center" style={{ width: '100%', paddingRight: 8 }}>
               <Flex align="center" gap={8} style={{ minWidth: 0 }}>
-                <Button
-                  type="text"
-                  icon={
-                    prompt.isFavorite ? (
-                      <StarFilled style={{ color: '#faad14', fontSize: 18 }} />
-                    ) : (
-                      <StarOutlined style={{ color: token.colorTextSecondary, fontSize: 18 }} />
-                    )
-                  }
-                  onClick={() => toggleFavorite(prompt.id, !prompt.isFavorite)}
-                  aria-label={prompt.isFavorite ? 'Unfavorite' : 'Favorite'}
-                  style={{ padding: 0, width: 28, height: 28 }}
-                />
+                <Tooltip title={prompt.isPinned ? 'Unpin from top' : 'Pin to top'}>
+                  <Button
+                    type="text"
+                    icon={
+                      prompt.isPinned ? (
+                        <PushpinFilled style={{ color: token.colorPrimary, fontSize: 18 }} />
+                      ) : (
+                        <PushpinOutlined style={{ color: token.colorTextSecondary, fontSize: 18 }} />
+                      )
+                    }
+                    onClick={() => togglePin(prompt.id, !prompt.isPinned)}
+                    aria-label={prompt.isPinned ? 'Unpin from top' : 'Pin to top'}
+                    style={{ padding: 0, width: 28, height: 28 }}
+                  />
+                </Tooltip>
+                <Tooltip title={prompt.isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
+                  <Button
+                    type="text"
+                    icon={
+                      prompt.isFavorite ? (
+                        <StarFilled style={{ color: '#faad14', fontSize: 18 }} />
+                      ) : (
+                        <StarOutlined style={{ color: token.colorTextSecondary, fontSize: 18 }} />
+                      )
+                    }
+                    onClick={() => toggleFavorite(prompt.id, !prompt.isFavorite)}
+                    aria-label={prompt.isFavorite ? 'Unfavorite' : 'Favorite'}
+                    style={{ padding: 0, width: 28, height: 28 }}
+                  />
+                </Tooltip>
                 <Text
                   strong
-                  style={{ fontSize: 16, color: token.colorText, maxWidth: 520 }}
+                  style={{ fontSize: 16, color: token.colorText, maxWidth: 480 }}
                   ellipsis
                 >
                   {prompt.title}
@@ -223,6 +248,17 @@ export const PromptDrawer: React.FC<PromptDrawerProps> = ({
 
             {/* Organization Metadata: Category, Collection, Tags */}
             <Flex align="center" wrap="wrap" gap={8}>
+              {prompt.isPinned && (
+                <Tag
+                  color="blue"
+                  variant="filled"
+                  icon={<PushpinOutlined />}
+                  style={{ fontSize: 12 }}
+                >
+                  Pinned to Top
+                </Tag>
+              )}
+
               {prompt.category && (
                 <Tag
                   icon={<FolderOutlined />}

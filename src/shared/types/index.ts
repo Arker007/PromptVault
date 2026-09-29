@@ -52,6 +52,7 @@ export interface PromptSummaryDTO {
   collection: { id: string; name: string } | null;
   tags: TagItem[];
   isFavorite: boolean;
+  isPinned: boolean;
   isArchived: boolean;
   copyCount: number;
   lastCopiedAt: string | null;
@@ -81,6 +82,7 @@ export interface PromptQueryParams {
   collection?: string;
   tags?: string;
   favorite?: boolean | string;
+  pinned?: boolean | string;
   archived?: boolean | string;
   sort?: string;
   page?: number;

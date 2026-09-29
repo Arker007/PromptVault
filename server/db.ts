@@ -84,6 +84,7 @@ function initSchema(db: Database) {
       description TEXT,
       content TEXT NOT NULL,
       is_favorite INTEGER NOT NULL DEFAULT 0,
+      is_pinned INTEGER NOT NULL DEFAULT 0,
       is_archived INTEGER NOT NULL DEFAULT 0,
       copy_count INTEGER NOT NULL DEFAULT 0,
       last_copied_at TEXT,
@@ -107,8 +108,17 @@ function initSchema(db: Database) {
       content TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+  `);
 
+  try {
+    db.run('ALTER TABLE prompts ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0;');
+  } catch {
+    // column already exists
+  }
+
+  db.run(`
     CREATE INDEX IF NOT EXISTS idx_prompts_user_id ON prompts(user_id);
+    CREATE INDEX IF NOT EXISTS idx_prompts_is_pinned ON prompts(is_pinned);
     CREATE INDEX IF NOT EXISTS idx_prompts_updated_at ON prompts(updated_at);
     CREATE INDEX IF NOT EXISTS idx_prompts_last_copied_at ON prompts(last_copied_at);
     CREATE INDEX IF NOT EXISTS idx_prompts_category_id ON prompts(category_id);

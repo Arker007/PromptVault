@@ -18,15 +18,18 @@ export function getAppTheme(isDarkMode: boolean): ThemeConfig {
     components: {
       Layout: {
         headerBg: isDarkMode ? '#141414' : '#ffffff',
-        headerHeight: 64,
+        headerHeight: 60,
         headerPadding: '0 24px',
-        siderBg: isDarkMode ? '#1f1f1f' : '#ffffff',
-        bodyBg: isDarkMode ? '#000000' : '#f5f5f5',
+        siderBg: isDarkMode ? '#141414' : '#ffffff',
+        triggerBg: isDarkMode ? '#141414' : '#ffffff',
+        triggerColor: isDarkMode ? 'rgba(255, 255, 255, 0.65)' : 'rgba(0, 0, 0, 0.65)',
+        bodyBg: isDarkMode ? '#0a0a0a' : '#f8f9fa',
       },
       Menu: {
         itemHeight: 40,
         itemBorderRadius: 6,
         itemMarginInline: 8,
+        colorBgContainer: isDarkMode ? '#141414' : '#ffffff',
       },
       Button: {
         controlHeight: 36,
