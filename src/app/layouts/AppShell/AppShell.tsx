@@ -82,50 +82,61 @@ export const AppShell: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const currentPath = location.pathname;
+
   const routeConfig = {
     path: '/',
     routes: [
       {
+        key: '/prompts',
         path: '/prompts',
         name: 'All Prompts',
         icon: <FileTextOutlined />,
       },
       {
+        key: '/prompts/pinned',
         path: '/prompts/pinned',
         name: 'Pinned',
         icon: <PushpinOutlined />,
       },
       {
+        key: '/prompts/favorites',
         path: '/prompts/favorites',
         name: 'Favorites',
         icon: <StarOutlined />,
       },
       {
+        key: '/prompts/recent',
         path: '/prompts/recent',
         name: 'Recently Used',
         icon: <HistoryOutlined />,
       },
       {
+        key: '/prompts/archived',
         path: '/prompts/archived',
         name: 'Archived',
         icon: <InboxOutlined />,
       },
       {
+        key: '/categories',
         path: '/categories',
         name: 'Categories',
         icon: <FolderOutlined />,
       },
       {
+        key: '/collections',
         path: '/collections',
         name: 'Collections',
         icon: <AppstoreOutlined />,
       },
       {
+        key: '/tags',
         path: '/tags',
         name: 'Tags',
         icon: <TagsOutlined />,
       },
       {
+        key: '/settings/profile',
         path: '/settings/profile',
         name: 'Settings & Cloud Storage',
         icon: <SettingOutlined />,
@@ -159,13 +170,13 @@ export const AppShell: React.FC = () => {
       key: 'cloud-storage',
       icon: <CloudServerOutlined />,
       label: 'Cloud & Supabase Storage',
-      onClick: () => navigate('/settings/profile'),
+      onClick: () => navigate('/settings/profile?tab=supabase'),
     },
     {
       key: 'settings',
       icon: <SettingOutlined />,
       label: 'Account & Preferences',
-      onClick: () => navigate('/settings/profile'),
+      onClick: () => navigate('/settings/profile?tab=profile'),
     },
     { type: 'divider' },
     {
@@ -214,11 +225,16 @@ export const AppShell: React.FC = () => {
             pathname: location.pathname,
           }}
           route={routeConfig}
+          selectedKeys={[currentPath]}
+          menuProps={{
+            selectedKeys: [currentPath],
+          }}
           menu={{
             defaultOpenAll: true,
           }}
           menuItemRender={(item) => {
-            const isSelected = location.pathname === item.path;
+            const isSelected = (item.key || item.path) === currentPath;
+            const activeColor = isDarkMode ? '#ffffff' : token.colorPrimary;
             const content = (
               <div
                 onClick={() => {
@@ -234,7 +250,7 @@ export const AppShell: React.FC = () => {
                   width: '100%',
                   height: '100%',
                   cursor: 'pointer',
-                  color: isSelected ? token.colorPrimary : token.colorTextSecondary,
+                  color: isSelected ? activeColor : token.colorTextSecondary,
                 }}
               >
                 <span
@@ -243,7 +259,7 @@ export const AppShell: React.FC = () => {
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: isSelected ? token.colorPrimary : 'inherit',
+                    color: isSelected ? activeColor : 'inherit',
                   }}
                 >
                   {item.icon}
@@ -253,7 +269,7 @@ export const AppShell: React.FC = () => {
                     style={{
                       fontSize: 13,
                       fontWeight: isSelected ? 600 : 400,
-                      color: isSelected ? token.colorPrimary : token.colorText,
+                      color: isSelected ? activeColor : token.colorText,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
@@ -280,7 +296,7 @@ export const AppShell: React.FC = () => {
               colorBgHeader: token.colorBgContainer,
               colorHeaderTitle: token.colorTextHeading,
               colorTextMenu: token.colorTextSecondary,
-              colorTextMenuSelected: token.colorPrimary,
+              colorTextMenuSelected: isDarkMode ? '#ffffff' : token.colorPrimary,
               colorBgMenuItemHover: token.colorFillTertiary,
               heightLayoutHeader: 56,
             },
@@ -290,10 +306,10 @@ export const AppShell: React.FC = () => {
               colorMenuBackground: token.colorBgContainer,
               colorMenuItemDivider: token.colorBorderSecondary,
               colorTextMenu: token.colorTextSecondary,
-              colorTextMenuSelected: token.colorPrimary,
-              colorTextMenuItemHover: token.colorPrimary,
+              colorTextMenuSelected: isDarkMode ? '#ffffff' : token.colorPrimary,
+              colorTextMenuItemHover: isDarkMode ? '#ffffff' : token.colorPrimary,
               colorBgMenuItemHover: token.colorFillTertiary,
-              colorBgMenuItemSelected: token.colorPrimaryBg,
+              colorBgMenuItemSelected: isDarkMode ? token.colorPrimary : token.colorPrimaryBg,
             },
             pageContainer: {
               paddingBlockPageContainerContent: 16,
@@ -332,7 +348,7 @@ export const AppShell: React.FC = () => {
               </Flex>
 
               <Tag
-                variant="outlined"
+                bordered={true}
                 style={{
                   margin: 0,
                   fontSize: 10,

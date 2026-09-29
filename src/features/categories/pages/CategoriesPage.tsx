@@ -10,6 +10,8 @@ import {
   Typography,
   Flex,
   Select,
+  Tooltip,
+  theme,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -30,6 +32,7 @@ import { formatDate } from '@/shared/lib/formatters.ts';
 const { Text } = Typography;
 
 export const CategoriesPage: React.FC = () => {
+  const { token } = theme.useToken();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -101,23 +104,23 @@ export const CategoriesPage: React.FC = () => {
       key: 'name',
       align: 'left',
       render: (text, record) => (
-        <Space orientation="horizontal" size={8}>
-          <FolderOutlined style={{ color: '#1677ff' }} />
+        <Flex align="start" gap={12} style={{ padding: '4px 0' }}>
+          <FolderOutlined style={{ color: token.colorPrimary, marginTop: 4, fontSize: 16 }} />
           <div>
             <Button
               type="link"
               onClick={() => navigate(`/prompts?category=${record.id}`)}
-              style={{ padding: 0, fontWeight: 500 }}
+              style={{ padding: 0, fontWeight: 600, fontSize: 14, height: 'auto', lineHeight: 'normal' }}
             >
               {text}
             </Button>
             {record.description && (
-              <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+              <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 4 }}>
                 {record.description}
               </Text>
             )}
           </div>
-        </Space>
+        </Flex>
       ),
     },
     {
@@ -151,19 +154,23 @@ export const CategoriesPage: React.FC = () => {
       width: 120,
       render: (_, record) => (
         <Space orientation="horizontal" size={4}>
-          <Button
-            type="text"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleOpenEdit(record)}
-          />
-          <Button
-            type="text"
-            size="small"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => setDeleteModalCategory(record)}
-          />
+          <Tooltip title="Edit Category">
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleOpenEdit(record)}
+            />
+          </Tooltip>
+          <Tooltip title="Delete Category">
+            <Button
+              type="text"
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => setDeleteModalCategory(record)}
+            />
+          </Tooltip>
         </Space>
       ),
     },

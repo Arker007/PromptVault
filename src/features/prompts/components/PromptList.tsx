@@ -73,11 +73,12 @@ export const PromptList: React.FC<PromptListProps> = ({
       <Listy
         items={items}
         rowKey="id"
+        virtual={false}
         itemRender={(item) => (
           <PromptListItem
             key={item.id}
             prompt={item}
-            isSelected={selectedIds.includes(item.id)}
+            isSelected={Boolean(selectedIds.includes(item.id))}
             onToggleSelect={onToggleSelect}
             onClick={onPromptClick}
             onEdit={onEditPrompt}

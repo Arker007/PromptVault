@@ -124,27 +124,39 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
       role="listitem"
       onClick={() => onClick(prompt.id)}
       style={{
-        padding: '16px 20px',
-        backgroundColor: token.colorBgContainer,
+        padding: prompt.isPinned ? '16px 20px 16px 17.5px' : '16px 20px',
+        backgroundColor: isSelected ? token.colorPrimaryBg : token.colorBgContainer,
         borderRadius: token.borderRadius,
-        borderTop: `1px solid ${isSelected ? token.colorPrimaryBorder : token.colorBorderSecondary}`,
-        borderRight: `1px solid ${isSelected ? token.colorPrimaryBorder : token.colorBorderSecondary}`,
-        borderBottom: `1px solid ${isSelected ? token.colorPrimaryBorder : token.colorBorderSecondary}`,
+        borderTop: `1px solid ${isSelected ? token.colorPrimary : token.colorBorderSecondary}`,
+        borderRight: `1px solid ${isSelected ? token.colorPrimary : token.colorBorderSecondary}`,
+        borderBottom: `1px solid ${isSelected ? token.colorPrimary : token.colorBorderSecondary}`,
         borderLeft: prompt.isPinned
-          ? `3px solid ${token.colorPrimary}`
-          : `1px solid ${isSelected ? token.colorPrimaryBorder : token.colorBorderSecondary}`,
+          ? `3.5px solid ${token.colorPrimary}`
+          : `1px solid ${isSelected ? token.colorPrimary : token.colorBorderSecondary}`,
+        boxShadow: isSelected ? `0 0 0 1px ${token.colorPrimary}` : undefined,
         marginBottom: 8,
         cursor: 'pointer',
-        transition: 'all 0.15s ease',
+        transition: 'background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease',
+        boxSizing: 'border-box',
       }}
-      className="prompt-list-item hover:border-gray-400"
+      className="prompt-list-item"
     >
       <Flex vertical style={{ width: '100%' }} gap={8}>
         {/* Top Header: Checkbox, Favorite, Pin, Title, Actions */}
         <Flex justify="space-between" align="flex-start" gap={12}>
           <Flex align="center" gap={8} style={{ minWidth: 0, flexWrap: 'wrap' }}>
             {onToggleSelect && (
-              <div onClick={(e) => e.stopPropagation()}>
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 20,
+                  height: 24,
+                  flexShrink: 0,
+                }}
+              >
                 <Checkbox
                   checked={isSelected}
                   onChange={() => onToggleSelect(prompt.id)}
@@ -199,20 +211,24 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
             </Text>
 
             {prompt.isPinned && (
-              <Tag
-                color="blue"
-                variant="filled"
-                icon={<PushpinOutlined />}
-                style={{ fontSize: 11, lineHeight: '18px', padding: '0 6px' }}
-              >
-                Pinned
-              </Tag>
+              <Tooltip title="Pinned to top of library">
+                <Tag
+                  color="blue"
+                  variant="filled"
+                  icon={<PushpinOutlined />}
+                  style={{ fontSize: 11, lineHeight: '18px', padding: '0 6px', cursor: 'pointer' }}
+                >
+                  Pinned
+                </Tag>
+              </Tooltip>
             )}
 
             {prompt.hasVariables && (
-              <Tag color="cyan" style={{ fontSize: 11, lineHeight: '18px', padding: '0 6px' }}>
-                {prompt.variables.length} var{prompt.variables.length > 1 ? 's' : ''}
-              </Tag>
+              <Tooltip title="Contains dynamic variables {{variable_name}}">
+                <Tag color="cyan" style={{ fontSize: 11, lineHeight: '18px', padding: '0 6px', cursor: 'pointer' }}>
+                  {prompt.variables.length} var{prompt.variables.length > 1 ? 's' : ''}
+                </Tag>
+              </Tooltip>
             )}
 
             {prompt.isArchived && (
@@ -248,13 +264,15 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
               trigger={['click']}
               placement="bottomRight"
             >
-              <Button
-                type="text"
-                size="small"
-                icon={<MoreOutlined />}
-                aria-label="More actions"
-                style={{ padding: '0 4px', color: token.colorTextSecondary }}
-              />
+              <Tooltip title="More prompt options">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<MoreOutlined />}
+                  aria-label="More actions"
+                  style={{ padding: '0 4px', color: token.colorTextSecondary }}
+                />
+              </Tooltip>
             </Dropdown>
           </Flex>
         </Flex>
@@ -330,16 +348,20 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
 
           <Space orientation="horizontal" size={14}>
             {prompt.copyCount > 0 && (
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                <CheckCircleOutlined style={{ marginRight: 4 }} />
-                Copied {prompt.copyCount} time{prompt.copyCount > 1 ? 's' : ''}
-              </Text>
+              <Tooltip title="Total times copied to clipboard">
+                <Text type="secondary" style={{ fontSize: 12, cursor: 'pointer' }}>
+                  <CheckCircleOutlined style={{ marginRight: 4 }} />
+                  Copied {prompt.copyCount} time{prompt.copyCount > 1 ? 's' : ''}
+                </Text>
+              </Tooltip>
             )}
 
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              <ClockCircleOutlined style={{ marginRight: 4 }} />
-              Updated {formatRelativeTime(prompt.updatedAt)}
-            </Text>
+            <Tooltip title={`Last modified on ${new Date(prompt.updatedAt).toLocaleString()}`}>
+              <Text type="secondary" style={{ fontSize: 12, cursor: 'pointer' }}>
+                <ClockCircleOutlined style={{ marginRight: 4 }} />
+                Updated {formatRelativeTime(prompt.updatedAt)}
+              </Text>
+            </Tooltip>
           </Space>
         </Flex>
       </Flex>

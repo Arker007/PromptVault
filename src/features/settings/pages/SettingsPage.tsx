@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Tabs,
   Form,
   Input,
   Button,
@@ -9,7 +9,6 @@ import {
   Typography,
   Flex,
   Space,
-  Alert,
   Upload,
   Divider,
   theme,
@@ -20,12 +19,11 @@ import {
   SettingOutlined,
   DownloadOutlined,
   UploadOutlined,
-  BulbOutlined,
   CloudServerOutlined,
 } from '@ant-design/icons';
+import { PageContainer, ProCard } from '@ant-design/pro-components';
 import { useAuth } from '@/features/auth/index.ts';
 import { useThemeMode } from '@/app/providers/ThemeProvider.tsx';
-import { PageHeader } from '@/shared/ui/PageHeader.tsx';
 import { apiClient } from '@/shared/api/apiClient.ts';
 import { authApi } from '@/features/auth/api/authApi.ts';
 import { message } from '@/shared/lib/message.ts';
@@ -43,6 +41,31 @@ export const SettingsPage: React.FC = () => {
   const [preferencesForm] = Form.useForm();
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['profile', 'security', 'preferences', 'supabase', 'backup'].includes(tabParam)) {
+      return tabParam;
+    }
+    return 'profile';
+  });
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['profile', 'security', 'preferences', 'supabase', 'backup'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [location.search]);
+
+  const handleTabChange = (key: string) => {
+    setActiveTab(key);
+    navigate(`/settings/profile?tab=${key}`, { replace: true });
+  };
 
   // Profile update
   const handleProfileSubmit = (values: any) => {
@@ -123,240 +146,254 @@ export const SettingsPage: React.FC = () => {
   };
 
   return (
-    <div>
-      <PageHeader
-        title="Settings"
-        description="Manage your account profile, security credentials, application preferences, and backups."
-      />
+    <PageContainer
+      header={{
+        title: 'Settings',
+        subTitle: 'Configure account profile, theme modes, database persistence, and library backups.',
+      }}
+      tabList={[
+        {
+          key: 'profile',
+          tab: (
+            <Space size={6}>
+              <UserOutlined />
+              <span>Profile</span>
+            </Space>
+          ),
+        },
+        {
+          key: 'security',
+          tab: (
+            <Space size={6}>
+              <LockOutlined />
+              <span>Security</span>
+            </Space>
+          ),
+        },
+        {
+          key: 'preferences',
+          tab: (
+            <Space size={6}>
+              <SettingOutlined />
+              <span>Preferences</span>
+            </Space>
+          ),
+        },
+        {
+          key: 'supabase',
+          tab: (
+            <Space size={6}>
+              <CloudServerOutlined />
+              <span>Cloud & Supabase Storage</span>
+            </Space>
+          ),
+        },
+        {
+          key: 'backup',
+          tab: (
+            <Space size={6}>
+              <DownloadOutlined />
+              <span>Local Backup & Import</span>
+            </Space>
+          ),
+        },
+      ]}
+      tabActiveKey={activeTab}
+      onTabChange={handleTabChange}
+    >
+      <div style={{ marginTop: 8 }}>
+        <div style={{ display: activeTab === 'profile' ? 'block' : 'none' }}>
+          <ProCard
+            bordered
+            headerBordered
+            title="Edit Profile"
+            style={{ maxWidth: 640 }}
+          >
+            <Form
+              form={profileForm}
+              layout="vertical"
+              initialValues={{
+                displayName: user?.displayName || '',
+                email: user?.email || '',
+              }}
+              onFinish={handleProfileSubmit}
+            >
+              <Form.Item label="Email Address">
+                <Input value={user?.email} disabled />
+                <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
+                  Your primary login email cannot be changed directly.
+                </Text>
+              </Form.Item>
 
-      <div
-        style={{
-          backgroundColor: token.colorBgContainer,
-          border: `1px solid ${token.colorBorderSecondary}`,
-          borderRadius: token.borderRadiusLG,
-          padding: '24px 32px',
-          maxWidth: 800,
-        }}
-      >
-        <Tabs
-          defaultActiveKey="profile"
-          items={[
-            {
-              key: 'profile',
-              forceRender: true,
-              label: (
-                <Space orientation="horizontal" size={6}>
-                  <UserOutlined />
-                  <span>Profile</span>
-                </Space>
-              ),
-              children: (
-                <div style={{ maxWidth: 480, paddingTop: 12 }}>
-                  <Form
-                    form={profileForm}
-                    layout="vertical"
-                    initialValues={{
-                      displayName: user?.displayName || '',
-                      email: user?.email || '',
-                    }}
-                    onFinish={handleProfileSubmit}
-                  >
-                    <Form.Item label="Email Address">
-                      <Input value={user?.email} disabled />
-                      <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-                        Your primary login email cannot be changed directly.
-                      </Text>
-                    </Form.Item>
+              <Form.Item
+                name="displayName"
+                label="Display Name"
+                rules={[{ required: true, message: 'Please enter your name' }]}
+              >
+                <Input placeholder="Your Name" maxLength={50} />
+              </Form.Item>
 
-                    <Form.Item
-                      name="displayName"
-                      label="Display Name"
-                      rules={[{ required: true, message: 'Please enter your name' }]}
-                    >
-                      <Input placeholder="Your Name" maxLength={50} />
-                    </Form.Item>
+              <Form.Item style={{ marginTop: 24, marginBottom: 0 }}>
+                <Button type="primary" htmlType="submit" loading={isUpdatingProfile}>
+                  Save Profile
+                </Button>
+              </Form.Item>
+            </Form>
+          </ProCard>
+        </div>
 
-                    <Form.Item style={{ marginTop: 24 }}>
-                      <Button type="primary" htmlType="submit" loading={isUpdatingProfile}>
-                        Save Profile
-                      </Button>
-                    </Form.Item>
-                  </Form>
-                </div>
-              ),
-            },
-            {
-              key: 'security',
-              forceRender: true,
-              label: (
-                <Space orientation="horizontal" size={6}>
-                  <LockOutlined />
-                  <span>Security</span>
-                </Space>
-              ),
-              children: (
-                <div style={{ maxWidth: 480, paddingTop: 12 }}>
-                  <Form
-                    form={passwordForm}
-                    layout="vertical"
-                    onFinish={handlePasswordSubmit}
-                  >
-                    <Form.Item
-                      name="currentPassword"
-                      label="Current Password"
-                      rules={[{ required: true, message: 'Enter your current password' }]}
-                    >
-                      <Input.Password placeholder="••••••••" />
-                    </Form.Item>
+        <div style={{ display: activeTab === 'security' ? 'block' : 'none' }}>
+          <ProCard
+            bordered
+            headerBordered
+            title="Update Password"
+            style={{ maxWidth: 640 }}
+          >
+            <Form
+              form={passwordForm}
+              layout="vertical"
+              onFinish={handlePasswordSubmit}
+            >
+              <Form.Item
+                name="currentPassword"
+                label="Current Password"
+                rules={[{ required: true, message: 'Enter your current password' }]}
+              >
+                <Input.Password placeholder="••••••••" />
+              </Form.Item>
 
-                    <Form.Item
-                      name="newPassword"
-                      label="New Password"
-                      rules={[
-                        { required: true, message: 'Enter new password' },
-                        { min: 6, message: 'Password must be at least 6 characters' },
-                      ]}
-                    >
-                      <Input.Password placeholder="Minimum 6 characters" />
-                    </Form.Item>
+              <Form.Item
+                name="newPassword"
+                label="New Password"
+                rules={[
+                  { required: true, message: 'Enter new password' },
+                  { min: 6, message: 'Password must be at least 6 characters' },
+                ]}
+              >
+                <Input.Password placeholder="Minimum 6 characters" />
+              </Form.Item>
 
-                    <Form.Item
-                      name="confirmPassword"
-                      label="Confirm New Password"
-                      dependencies={['newPassword']}
-                      rules={[
-                        { required: true, message: 'Please confirm password' },
-                        ({ getFieldValue }) => ({
-                          validator(_, value) {
-                            if (!value || getFieldValue('newPassword') === value) {
-                              return Promise.resolve();
-                            }
-                            return Promise.reject(new Error('The two passwords do not match'));
-                          },
-                        }),
-                      ]}
-                    >
-                      <Input.Password placeholder="Confirm new password" />
-                    </Form.Item>
+              <Form.Item
+                name="confirmPassword"
+                label="Confirm New Password"
+                dependencies={['newPassword']}
+                rules={[
+                  { required: true, message: 'Please confirm password' },
+                  ({ getFieldValue }) => ({
+                    validator(_, value) {
+                      if (!value || getFieldValue('newPassword') === value) {
+                        return Promise.resolve();
+                      }
+                      return Promise.reject(new Error('The two passwords do not match'));
+                    },
+                  }),
+                ]}
+              >
+                <Input.Password placeholder="Confirm new password" />
+              </Form.Item>
 
-                    <Form.Item style={{ marginTop: 24 }}>
-                      <Button type="primary" htmlType="submit" loading={isChangingPassword}>
-                        Update Password
-                      </Button>
-                    </Form.Item>
-                  </Form>
-                </div>
-              ),
-            },
-            {
-              key: 'preferences',
-              forceRender: true,
-              label: (
-                <Space orientation="horizontal" size={6}>
-                  <SettingOutlined />
-                  <span>Preferences</span>
-                </Space>
-              ),
-              children: (
-                <div style={{ maxWidth: 480, paddingTop: 12 }}>
-                  <Form
-                    form={preferencesForm}
-                    layout="vertical"
-                    initialValues={{
-                      theme: isDarkMode ? 'dark' : 'light',
-                      defaultPageSize: user?.preferences?.defaultPageSize || 25,
-                      copyNotificationDuration: user?.preferences?.copyNotificationDuration || 2,
-                    }}
-                    onFinish={handlePreferencesSubmit}
-                  >
-                    <Form.Item name="theme" label="Theme Appearance">
-                      <Radio.Group
-                        onChange={(e) => setDarkMode(e.target.value === 'dark')}
-                      >
-                        <Radio.Button value="light">Light Mode</Radio.Button>
-                        <Radio.Button value="dark">Dark Mode</Radio.Button>
-                      </Radio.Group>
-                    </Form.Item>
+              <Form.Item style={{ marginTop: 24, marginBottom: 0 }}>
+                <Button type="primary" htmlType="submit" loading={isChangingPassword}>
+                  Update Password
+                </Button>
+              </Form.Item>
+            </Form>
+          </ProCard>
+        </div>
 
-                    <Form.Item name="defaultPageSize" label="Default Prompts Per Page">
-                      <Select
-                        options={[
-                          { label: '15 items', value: 15 },
-                          { label: '25 items', value: 25 },
-                          { label: '50 items', value: 50 },
-                          { label: '100 items', value: 100 },
-                        ]}
-                      />
-                    </Form.Item>
+        <div style={{ display: activeTab === 'preferences' ? 'block' : 'none' }}>
+          <ProCard
+            bordered
+            headerBordered
+            title="App Preferences"
+            style={{ maxWidth: 640 }}
+          >
+            <Form
+              form={preferencesForm}
+              layout="vertical"
+              initialValues={{
+                theme: isDarkMode ? 'dark' : 'light',
+                defaultPageSize: user?.preferences?.defaultPageSize || 25,
+                copyNotificationDuration: user?.preferences?.copyNotificationDuration || 2,
+              }}
+              onFinish={handlePreferencesSubmit}
+            >
+              <Form.Item name="theme" label="Theme Appearance">
+                <Radio.Group
+                  onChange={(e) => setDarkMode(e.target.value === 'dark')}
+                >
+                  <Radio.Button value="light">Light Mode</Radio.Button>
+                  <Radio.Button value="dark">Dark Mode</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
 
-                    <Form.Item name="copyNotificationDuration" label="Copy Alert Duration">
-                      <Select
-                        options={[
-                          { label: '1.5 seconds', value: 1.5 },
-                          { label: '2.0 seconds (Default)', value: 2 },
-                          { label: '3.0 seconds', value: 3 },
-                        ]}
-                      />
-                    </Form.Item>
+              <Form.Item name="defaultPageSize" label="Default Prompts Per Page">
+                <Select
+                  options={[
+                    { label: '15 items', value: 15 },
+                    { label: '25 items', value: 25 },
+                    { label: '50 items', value: 50 },
+                    { label: '100 items', value: 100 },
+                  ]}
+                />
+              </Form.Item>
 
-                    <Form.Item style={{ marginTop: 24 }}>
-                      <Button type="primary" htmlType="submit" loading={isUpdatingProfile}>
-                        Save Preferences
-                      </Button>
-                    </Form.Item>
-                  </Form>
-                </div>
-              ),
-            },
-            {
-              key: 'supabase',
-              label: (
-                <Space orientation="horizontal" size={6}>
-                  <CloudServerOutlined />
-                  <span>Cloud & Supabase Storage</span>
-                </Space>
-              ),
-              children: <SupabaseStorageSettings />,
-            },
-            {
-              key: 'backup',
-              label: (
-                <Space orientation="horizontal" size={6}>
-                  <DownloadOutlined />
-                  <span>Local Backup & Import</span>
-                </Space>
-              ),
-              children: (
-                <div style={{ maxWidth: 560, paddingTop: 12 }}>
-                  <Title level={5}>Export Knowledge Base</Title>
-                  <Paragraph type="secondary" style={{ fontSize: 13 }}>
-                    Download a complete JSON export of all your prompts, categories, collections, tags, version histories, and metadata.
-                  </Paragraph>
-                  <Button icon={<DownloadOutlined />} onClick={handleExportData}>
-                    Export JSON Archive
-                  </Button>
+              <Form.Item name="copyNotificationDuration" label="Copy Alert Duration">
+                <Select
+                  options={[
+                    { label: '1.5 seconds', value: 1.5 },
+                    { label: '2.0 seconds (Default)', value: 2 },
+                    { label: '3.0 seconds', value: 3 },
+                  ]}
+                />
+              </Form.Item>
 
-                  <Divider />
+              <Form.Item style={{ marginTop: 24, marginBottom: 0 }}>
+                <Button type="primary" htmlType="submit" loading={isUpdatingProfile}>
+                  Save Preferences
+                </Button>
+              </Form.Item>
+            </Form>
+          </ProCard>
+        </div>
 
-                  <Title level={5}>Import Knowledge Base</Title>
-                  <Paragraph type="secondary" style={{ fontSize: 13 }}>
-                    Restore or import prompts from a previously exported PromptVault JSON archive. Duplicates will be safely merged.
-                  </Paragraph>
-                  <Upload
-                    beforeUpload={handleImportFile}
-                    showUploadList={false}
-                    accept=".json"
-                  >
-                    <Button icon={<UploadOutlined />} loading={isImporting}>
-                      Select JSON File to Import
-                    </Button>
-                  </Upload>
-                </div>
-              ),
-            },
-          ]}
-        />
+        <div style={{ display: activeTab === 'supabase' ? 'block' : 'none', width: '100%' }}>
+          <SupabaseStorageSettings />
+        </div>
+
+        <div style={{ display: activeTab === 'backup' ? 'block' : 'none' }}>
+          <ProCard
+            bordered
+            headerBordered
+            title="Library Data Export & Import"
+            style={{ maxWidth: 640 }}
+          >
+            <Title level={5}>Export Knowledge Base</Title>
+            <Paragraph type="secondary" style={{ fontSize: 13 }}>
+              Download a complete JSON export of all your prompts, categories, collections, tags, version histories, and metadata.
+            </Paragraph>
+            <Button icon={<DownloadOutlined />} onClick={handleExportData} style={{ marginBottom: 16 }}>
+              Export JSON Archive
+            </Button>
+
+            <Divider />
+
+            <Title level={5}>Import Knowledge Base</Title>
+            <Paragraph type="secondary" style={{ fontSize: 13 }}>
+              Restore or import prompts from a previously exported PromptVault JSON archive. Duplicates will be safely merged.
+            </Paragraph>
+            <Upload
+              beforeUpload={handleImportFile}
+              showUploadList={false}
+              accept=".json"
+            >
+              <Button icon={<UploadOutlined />} loading={isImporting}>
+                Select JSON File to Import
+              </Button>
+            </Upload>
+          </ProCard>
+        </div>
       </div>
-    </div>
+    </PageContainer>
   );
 };

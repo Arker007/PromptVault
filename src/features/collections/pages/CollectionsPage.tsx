@@ -11,6 +11,8 @@ import {
   Flex,
   Select,
   Tag,
+  Tooltip,
+  theme,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -32,6 +34,7 @@ import { formatDate } from '@/shared/lib/formatters.ts';
 const { Text } = Typography;
 
 export const CollectionsPage: React.FC = () => {
+  const { token } = theme.useToken();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -104,23 +107,23 @@ export const CollectionsPage: React.FC = () => {
       key: 'name',
       align: 'left',
       render: (text, record) => (
-        <Space orientation="horizontal" size={8}>
-          <AppstoreOutlined style={{ color: '#1677ff' }} />
+        <Flex align="start" gap={12} style={{ padding: '4px 0' }}>
+          <AppstoreOutlined style={{ color: token.colorPrimary, marginTop: 4, fontSize: 16 }} />
           <div>
             <Button
               type="link"
               onClick={() => navigate(`/prompts?collection=${record.id}`)}
-              style={{ padding: 0, fontWeight: 500 }}
+              style={{ padding: 0, fontWeight: 600, fontSize: 14, height: 'auto', lineHeight: 'normal' }}
             >
               {text}
             </Button>
             {record.description && (
-              <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+              <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 4 }}>
                 {record.description}
               </Text>
             )}
           </div>
-        </Space>
+        </Flex>
       ),
     },
     {
@@ -171,12 +174,14 @@ export const CollectionsPage: React.FC = () => {
       width: 120,
       render: (_, record) => (
         <Space orientation="horizontal" size={4}>
-          <Button
-            type="text"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleOpenEdit(record)}
-          />
+          <Tooltip title="Edit Collection">
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleOpenEdit(record)}
+            />
+          </Tooltip>
           <Popconfirm
             title="Delete Collection?"
             description="Prompts in this collection will not be deleted, only unassigned from this collection."
@@ -185,7 +190,9 @@ export const CollectionsPage: React.FC = () => {
             okButtonProps={{ danger: true }}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+            <Tooltip title="Delete Collection">
+              <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Input, Typography, Flex, Space, Tag, Empty, Spin, theme } from 'antd';
+import { Modal, Input, Typography, Flex, Space, Tag, Empty, Spin, theme, Listy } from 'antd';
 import {
   SearchOutlined,
   FileTextOutlined,
@@ -20,6 +20,34 @@ interface GlobalSearchModalProps {
   onSelectCollection: (id: string) => void;
   onSelectTag: (name: string) => void;
 }
+
+// Hoverable result item utilizing Ant Design tokens for pristine theme consistency
+const SearchResultRow: React.FC<{
+  onClick: () => void;
+  children: React.ReactNode;
+  padding?: string | number;
+}> = ({ onClick, children, padding = '8px 12px' }) => {
+  const { token } = theme.useToken();
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        cursor: 'pointer',
+        padding,
+        borderRadius: token.borderRadiusSM,
+        backgroundColor: hovered ? token.controlItemBgHover : 'transparent',
+        transition: 'background-color 0.15s ease',
+        display: 'block',
+      }}
+    >
+      {children}
+    </div>
+  );
+};
 
 export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
   open,
@@ -60,7 +88,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
         const data = await apiClient.get<any>('/api/search', { q: query.trim() });
         setResults(data);
       } catch {
-        // search error
+        // search error handling
       } finally {
         setLoading(false);
       }
@@ -111,103 +139,113 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
       )}
 
       {!loading && hasAnyResults && (
-        <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+        <div style={{ maxHeight: 420, overflowY: 'auto', paddingRight: 4 }}>
           {/* Prompts Section */}
           {results.prompts.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <Text strong type="secondary" style={{ fontSize: 11, textTransform: 'uppercase' }}>
+              <Text strong type="secondary" style={{ fontSize: 11, letterSpacing: '0.05em' }}>
                 PROMPTS ({results.prompts.length})
               </Text>
-              <div style={{ marginTop: 4 }}>
-                {results.prompts.map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => onSelectPrompt(p.id)}
-                    style={{
-                      cursor: 'pointer',
-                      padding: '8px 12px',
-                      borderRadius: 4,
-                      display: 'block',
-                    }}
-                    className="hover:bg-gray-100 dark:hover:bg-neutral-800"
-                  >
+              <Listy
+                virtual={false}
+                items={results.prompts}
+                rowKey="id"
+                style={{ marginTop: 4 }}
+                itemRender={(p) => (
+                  <SearchResultRow onClick={() => onSelectPrompt(p.id)} padding="8px 12px">
                     <Flex justify="space-between" align="center">
                       <Space orientation="horizontal" size={8}>
                         <FileTextOutlined style={{ color: token.colorPrimary }} />
-                        <Text strong style={{ fontSize: 13 }}>
+                        <Text strong style={{ fontSize: 13, color: token.colorText }}>
                           {p.title}
                         </Text>
                         {p.isFavorite && <StarFilled style={{ color: '#faad14', fontSize: 12 }} />}
                       </Space>
                       {p.categoryName && (
-                        <Tag variant="filled" style={{ fontSize: 11 }}>
+                        <Tag
+                          style={{
+                            fontSize: 11,
+                            marginRight: 0,
+                            backgroundColor: token.colorFillSecondary,
+                            border: `1px solid ${token.colorBorderSecondary}`,
+                            color: token.colorTextSecondary,
+                          }}
+                        >
                           {p.categoryName}
                         </Tag>
                       )}
                     </Flex>
                     {p.preview && (
-                      <Text type="secondary" ellipsis style={{ fontSize: 12, display: 'block', marginTop: 2, paddingLeft: 22 }}>
+                      <Text
+                        type="secondary"
+                        ellipsis
+                        style={{
+                          fontSize: 12,
+                          display: 'block',
+                          marginTop: 3,
+                          paddingLeft: 22,
+                          color: token.colorTextSecondary,
+                        }}
+                      >
                         {p.preview}
                       </Text>
                     )}
-                  </div>
-                ))}
-              </div>
+                  </SearchResultRow>
+                )}
+              />
             </div>
           )}
 
           {/* Categories Section */}
           {results.categories.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <Text strong type="secondary" style={{ fontSize: 11, textTransform: 'uppercase' }}>
+              <Text strong type="secondary" style={{ fontSize: 11, letterSpacing: '0.05em' }}>
                 CATEGORIES ({results.categories.length})
               </Text>
-              <div style={{ marginTop: 4 }}>
-                {results.categories.map((c) => (
-                  <div
-                    key={c.id}
-                    onClick={() => onSelectCategory(c.id)}
-                    style={{ cursor: 'pointer', padding: '6px 12px', borderRadius: 4 }}
-                    className="hover:bg-gray-100 dark:hover:bg-neutral-800"
-                  >
+              <Listy
+                virtual={false}
+                items={results.categories}
+                rowKey="id"
+                style={{ marginTop: 4 }}
+                itemRender={(c) => (
+                  <SearchResultRow onClick={() => onSelectCategory(c.id)} padding="6px 12px">
                     <Space orientation="horizontal" size={8}>
                       <FolderOutlined style={{ color: token.colorTextSecondary }} />
-                      <Text style={{ fontSize: 13 }}>{c.name}</Text>
+                      <Text style={{ fontSize: 13, color: token.colorText }}>{c.name}</Text>
                     </Space>
-                  </div>
-                ))}
-              </div>
+                  </SearchResultRow>
+                )}
+              />
             </div>
           )}
 
           {/* Collections Section */}
           {results.collections.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <Text strong type="secondary" style={{ fontSize: 11, textTransform: 'uppercase' }}>
+              <Text strong type="secondary" style={{ fontSize: 11, letterSpacing: '0.05em' }}>
                 COLLECTIONS ({results.collections.length})
               </Text>
-              <div style={{ marginTop: 4 }}>
-                {results.collections.map((col) => (
-                  <div
-                    key={col.id}
-                    onClick={() => onSelectCollection(col.id)}
-                    style={{ cursor: 'pointer', padding: '6px 12px', borderRadius: 4 }}
-                    className="hover:bg-gray-100 dark:hover:bg-neutral-800"
-                  >
+              <Listy
+                virtual={false}
+                items={results.collections}
+                rowKey="id"
+                style={{ marginTop: 4 }}
+                itemRender={(col) => (
+                  <SearchResultRow onClick={() => onSelectCollection(col.id)} padding="6px 12px">
                     <Space orientation="horizontal" size={8}>
                       <AppstoreOutlined style={{ color: token.colorTextSecondary }} />
-                      <Text style={{ fontSize: 13 }}>{col.name}</Text>
+                      <Text style={{ fontSize: 13, color: token.colorText }}>{col.name}</Text>
                     </Space>
-                  </div>
-                ))}
-              </div>
+                  </SearchResultRow>
+                )}
+              />
             </div>
           )}
 
           {/* Tags Section */}
           {results.tags.length > 0 && (
             <div>
-              <Text strong type="secondary" style={{ fontSize: 11, textTransform: 'uppercase' }}>
+              <Text strong type="secondary" style={{ fontSize: 11, letterSpacing: '0.05em' }}>
                 TAGS ({results.tags.length})
               </Text>
               <Flex gap={8} wrap="wrap" style={{ marginTop: 8 }}>
@@ -215,7 +253,12 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                   <Tag
                     key={t.id}
                     icon={<TagsOutlined />}
-                    style={{ cursor: 'pointer', padding: '4px 8px', fontSize: 12 }}
+                    style={{
+                      cursor: 'pointer',
+                      padding: '4px 8px',
+                      fontSize: 12,
+                      borderRadius: token.borderRadiusSM,
+                    }}
                     onClick={() => onSelectTag(t.name)}
                   >
                     #{t.name}

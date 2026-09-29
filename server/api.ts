@@ -8,8 +8,11 @@ import {
   getEffectiveSupabaseConfig,
   createSupabaseClient,
   testSupabaseConnection,
+  testSupabaseDatabase,
+  getSupabaseSchemaSql,
   ensureBucketExists,
 } from './supabase.js';
+import { syncUserDataToSupabase } from './supabase-db.js';
 
 const upload = multer({
   limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
@@ -699,6 +702,9 @@ apiRouter.post('/prompts', requireAuth, async (req: AuthRequest, res: Response) 
       }
     }
 
+    // Auto-sync to Supabase Database if configured
+    syncUserDataToSupabase(userId, queryOne, queryAll, db);
+
     return res.status(201).json({ id: promptId, success: true });
   } catch (err: any) {
     return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
@@ -727,8 +733,11 @@ apiRouter.patch('/prompts/:id', requireAuth, async (req: AuthRequest, res: Respo
     const updatedPin = isPinned !== undefined ? (isPinned ? 1 : 0) : existing.is_pinned;
     const updatedArch = isArchived !== undefined ? (isArchived ? 1 : 0) : existing.is_archived;
 
-    // Check if content or title changed -> create new version!
-    const contentChanged = updatedContent !== existing.content || updatedTitle !== existing.title;
+    // Check if content, title, or description changed -> create new version!
+    const contentChanged =
+      updatedContent !== existing.content ||
+      updatedTitle !== existing.title ||
+      updatedDesc !== existing.description;
 
     runQuery(
       db,
@@ -780,6 +789,8 @@ apiRouter.patch('/prompts/:id', requireAuth, async (req: AuthRequest, res: Respo
       }
     }
 
+    syncUserDataToSupabase(userId, queryOne, queryAll, db);
+
     return res.json({ id: promptId, success: true });
   } catch (err: any) {
     return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
@@ -800,6 +811,8 @@ apiRouter.delete('/prompts/:id', requireAuth, async (req: AuthRequest, res: Resp
     runQuery(db, 'DELETE FROM prompt_tags WHERE prompt_id = ?', [promptId]);
     runQuery(db, 'DELETE FROM prompt_versions WHERE prompt_id = ?', [promptId]);
     runQuery(db, 'DELETE FROM prompts WHERE id = ? AND user_id = ?', [promptId, userId]);
+
+    syncUserDataToSupabase(userId, queryOne, queryAll, db);
 
     return res.json({ success: true, message: 'Prompt deleted permanently' });
   } catch (err: any) {
@@ -1057,6 +1070,8 @@ apiRouter.post('/prompts/:id/versions/:versionId/restore', requireAuth, async (r
       [newVerId, promptId, nextVerNum, ver.title, ver.description, ver.content, now]
     );
 
+    syncUserDataToSupabase(userId, queryOne, queryAll, db);
+
     return res.json({ success: true, versionNumber: nextVerNum });
   } catch (err: any) {
     return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
@@ -1205,6 +1220,8 @@ apiRouter.post('/categories', requireAuth, async (req: AuthRequest, res: Respons
       [id, userId, name.trim(), description ? description.trim() : null, now, now]
     );
 
+    syncUserDataToSupabase(userId, queryOne, queryAll, db);
+
     return res.status(201).json({ id, name: name.trim(), description: description || '', promptCount: 0 });
   } catch (err: any) {
     return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
@@ -1229,6 +1246,8 @@ apiRouter.patch('/categories/:id', requireAuth, async (req: AuthRequest, res: Re
       'UPDATE categories SET name = ?, description = ?, updated_at = ? WHERE id = ? AND user_id = ?',
       [name.trim(), description ? description.trim() : null, now, catId, userId]
     );
+
+    syncUserDataToSupabase(userId, queryOne, queryAll, db);
 
     return res.json({ success: true });
   } catch (err: any) {
@@ -1267,6 +1286,9 @@ apiRouter.delete('/categories/:id', requireAuth, async (req: AuthRequest, res: R
     }
 
     runQuery(db, 'DELETE FROM categories WHERE id = ? AND user_id = ?', [catId, userId]);
+
+    syncUserDataToSupabase(userId, queryOne, queryAll, db);
+
     return res.json({ success: true, message: 'Category deleted' });
   } catch (err: any) {
     return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
@@ -1729,6 +1751,8 @@ apiRouter.post('/import', requireAuth, async (req: AuthRequest, res: Response) =
       importedPrompts++;
     }
 
+    syncUserDataToSupabase(userId, queryOne, queryAll, db);
+
     return res.json({
       success: true,
       imported: {
@@ -1803,6 +1827,9 @@ apiRouter.post('/supabase/config', requireAuth, async (req: AuthRequest, res: Re
       new Date().toISOString(),
       req.userId,
     ]);
+
+    // Trigger immediate auto-sync to Supabase Database
+    syncUserDataToSupabase(req.userId!, queryOne, queryAll, db);
 
     return res.json({ success: true, message: 'Supabase configuration saved successfully' });
   } catch (err: any) {
@@ -2334,5 +2361,185 @@ apiRouter.delete('/supabase/storage/files', requireAuth, async (req: AuthRequest
     return res.json({ success: true, message: 'Asset deleted from Supabase Storage' });
   } catch (err: any) {
     return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+// 11. Test Direct Supabase Database Connection
+apiRouter.post('/supabase/db/test', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const db = await getDb();
+    const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(user?.preferences);
+
+    const result = await testSupabaseDatabase(config.supabaseUrl || '', config.supabaseKey || '');
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message || 'Database connection test failed' });
+  }
+});
+
+// 12. Get Phase 1 Supabase SQL Schema
+apiRouter.get('/supabase/db/schema', requireAuth, async (_req: AuthRequest, res: Response) => {
+  try {
+    const sql = getSupabaseSchemaSql();
+    return res.json({ sql });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+// 13. Phase 2: Migrate Local SQLite to Supabase PostgreSQL
+apiRouter.post('/supabase/db/migrate-from-sqlite', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const localDb = await getDb();
+    const user = queryOne<{ preferences: string }>(localDb, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(user?.preferences);
+
+    const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+    if (!client) {
+      return res.status(400).json({
+        code: 'CONFIG_MISSING',
+        message: 'Supabase URL and API Key are required in Settings before migrating.',
+      });
+    }
+
+    // Read all records from local SQLite
+    const users = queryAll(localDb, 'SELECT * FROM users WHERE id = ?', [userId]);
+    const categories = queryAll(localDb, 'SELECT * FROM categories WHERE user_id = ?', [userId]);
+    const collections = queryAll(localDb, 'SELECT * FROM collections WHERE user_id = ?', [userId]);
+    const tags = queryAll(localDb, 'SELECT * FROM tags WHERE user_id = ?', [userId]);
+    const prompts = queryAll(localDb, 'SELECT * FROM prompts WHERE user_id = ?', [userId]);
+    const promptTags = queryAll(
+      localDb,
+      'SELECT pt.* FROM prompt_tags pt JOIN prompts p ON pt.prompt_id = p.id WHERE p.user_id = ?',
+      [userId]
+    );
+    const promptVersions = queryAll(
+      localDb,
+      'SELECT pv.* FROM prompt_versions pv JOIN prompts p ON pv.prompt_id = p.id WHERE p.user_id = ?',
+      [userId]
+    );
+
+    // Upsert into Supabase Direct Database
+    if (users.length > 0) {
+      const formattedUsers = users.map((u) => ({
+        id: u.id,
+        email: u.email,
+        password_hash: u.password_hash,
+        display_name: u.display_name,
+        preferences: u.preferences ? JSON.parse(u.preferences) : {},
+        created_at: u.created_at,
+        updated_at: u.updated_at,
+      }));
+      const { error: userErr } = await client.from('users').upsert(formattedUsers);
+      if (userErr && !userErr.message.includes('duplicate key')) {
+        console.warn('User upsert notice:', userErr.message);
+      }
+    }
+
+    if (categories.length > 0) {
+      const { error: catErr } = await client.from('categories').upsert(categories);
+      if (catErr) throw new Error(`Category migration failed: ${catErr.message}`);
+    }
+
+    if (collections.length > 0) {
+      const { error: colErr } = await client.from('collections').upsert(collections);
+      if (colErr) throw new Error(`Collection migration failed: ${colErr.message}`);
+    }
+
+    if (tags.length > 0) {
+      const { error: tagErr } = await client.from('tags').upsert(tags);
+      if (tagErr) throw new Error(`Tag migration failed: ${tagErr.message}`);
+    }
+
+    if (prompts.length > 0) {
+      const formattedPrompts = prompts.map((p) => ({
+        id: p.id,
+        user_id: p.user_id,
+        category_id: p.category_id || null,
+        collection_id: p.collection_id || null,
+        title: p.title,
+        description: p.description || null,
+        content: p.content,
+        is_favorite: Boolean(p.is_favorite),
+        is_pinned: Boolean(p.is_pinned),
+        is_archived: Boolean(p.is_archived),
+        copy_count: p.copy_count || 0,
+        last_copied_at: p.last_copied_at || null,
+        last_viewed_at: p.last_viewed_at || null,
+        created_at: p.created_at,
+        updated_at: p.updated_at,
+      }));
+      const { error: prmErr } = await client.from('prompts').upsert(formattedPrompts);
+      if (prmErr) throw new Error(`Prompt migration failed: ${prmErr.message}`);
+    }
+
+    if (promptTags.length > 0) {
+      const { error: ptErr } = await client.from('prompt_tags').upsert(promptTags);
+      if (ptErr) console.warn('PromptTags migration notice:', ptErr.message);
+    }
+
+    if (promptVersions.length > 0) {
+      const { error: pvErr } = await client.from('prompt_versions').upsert(promptVersions);
+      if (pvErr) console.warn('PromptVersions migration notice:', pvErr.message);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Successfully migrated local SQLite data directly to Supabase PostgreSQL!',
+      stats: {
+        prompts: prompts.length,
+        categories: categories.length,
+        collections: collections.length,
+        tags: tags.length,
+        versions: promptVersions.length,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'MIGRATION_FAILED', message: err.message });
+  }
+});
+
+// 14. Phase 2: Get Direct Supabase DB Table Live Statistics
+apiRouter.get('/supabase/db/stats', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const db = await getDb();
+    const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(user?.preferences);
+
+    const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+    if (!client) {
+      return res.json({ isConfigured: false });
+    }
+
+    const [promptsRes, categoriesRes, collectionsRes, tagsRes] = await Promise.all([
+      client.from('prompts').select('id', { count: 'exact', head: false }).eq('user_id', userId),
+      client.from('categories').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      client.from('collections').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+      client.from('tags').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+    ]);
+
+    const promptIds = (promptsRes.data || []).map((p: any) => p.id);
+    let promptVersionsCount = 0;
+    if (promptIds.length > 0) {
+      const pvRes = await client.from('prompt_versions').select('*', { count: 'exact', head: true }).in('prompt_id', promptIds);
+      promptVersionsCount = pvRes.count || 0;
+    }
+
+    return res.json({
+      isConfigured: true,
+      stats: {
+        prompts: promptsRes.count || 0,
+        categories: categoriesRes.count || 0,
+        collections: collectionsRes.count || 0,
+        tags: tagsRes.count || 0,
+        promptVersions: promptVersionsCount,
+      },
+    });
+  } catch (err: any) {
+    return res.json({ isConfigured: false, error: err.message });
   }
 });

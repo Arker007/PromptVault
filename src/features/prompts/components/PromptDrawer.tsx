@@ -55,7 +55,17 @@ export const PromptDrawer: React.FC<PromptDrawerProps> = ({
   onClose,
   onEdit,
 }) => {
-  const { data: prompt, isLoading, isError } = usePrompt(promptId);
+  // Retain promptId during exit animation to prevent content unmounting while sliding closed
+  const [cachedPromptId, setCachedPromptId] = useState<string | null>(promptId);
+
+  React.useEffect(() => {
+    if (promptId) {
+      setCachedPromptId(promptId);
+    }
+  }, [promptId]);
+
+  const activeId = promptId || cachedPromptId;
+  const { data: prompt, isLoading, isError } = usePrompt(activeId);
   const { copyPrompt, isCopying } = useCopyPrompt();
   const { toggleFavorite, togglePin, archivePrompt, restorePrompt, duplicatePrompt } = usePromptActions();
   const deleteMutation = useDeletePrompt();
@@ -63,8 +73,6 @@ export const PromptDrawer: React.FC<PromptDrawerProps> = ({
 
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [variablesOpen, setVariablesOpen] = useState(false);
-
-  if (!promptId) return null;
 
   const overflowMenuItems: MenuProps['items'] = [
     {

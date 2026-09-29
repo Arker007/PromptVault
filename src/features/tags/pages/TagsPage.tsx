@@ -10,6 +10,7 @@ import {
   Typography,
   Flex,
   Tag,
+  Tooltip,
 } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
@@ -133,12 +134,14 @@ export const TagsPage: React.FC = () => {
       width: 120,
       render: (_, record) => (
         <Space orientation="horizontal" size={4}>
-          <Button
-            type="text"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleOpenEdit(record)}
-          />
+          <Tooltip title="Edit Tag">
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleOpenEdit(record)}
+            />
+          </Tooltip>
           <Popconfirm
             title="Delete Tag?"
             description="This will remove this tag from all associated prompts."
@@ -147,7 +150,9 @@ export const TagsPage: React.FC = () => {
             okButtonProps={{ danger: true }}
             onConfirm={() => deleteMutation.mutate(record.id)}
           >
-            <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+            <Tooltip title="Delete Tag">
+              <Button type="text" size="small" danger icon={<DeleteOutlined />} />
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),

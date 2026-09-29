@@ -92,6 +92,7 @@ export const PromptVersionsDrawer: React.FC<PromptVersionsDrawerProps> = ({
         <Listy
           items={versions}
           rowKey="id"
+          virtual={false}
           itemRender={(v, index) => {
             const isLatest = index === 0;
             const isViewing = selectedVersion?.id === v.id;

@@ -1,5 +1,6 @@
 /* Ant Design Enterprise Productivity Theme - Minimal Layout CSS */
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -75,12 +76,23 @@ pre.prompt-code-block {
   opacity: 1 !important;
 }
 
-.ant-pro-sider.ant-layout-sider-collapsed .ant-menu-item,
-.ant-layout-sider-collapsed .ant-menu-item,
-.ant-menu-inline-collapsed .ant-menu-item {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  padding: 0 !important;
+.prompt-list-item {
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
 }
+
+.prompt-list-item:hover {
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+}
+
+/* Ensure selected sidebar menu item icons in dark mode are crisp white on primary blue background */
+.dark .ant-menu-item-selected .anticon,
+.dark .ant-menu-item-selected .ant-menu-item-icon,
+.dark .ant-pro-sider .ant-menu-item-selected .anticon,
+.dark .ant-layout-sider .ant-menu-item-selected .anticon,
+.dark .ant-menu-item-selected svg {
+  color: #ffffff !important;
+  fill: currentColor !important;
+}
+
+
 

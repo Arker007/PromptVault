@@ -142,7 +142,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </Flex>
 
           <Tag
-            variant="outlined"
+            bordered={true}
             style={{
               margin: 0,
               fontSize: 11,

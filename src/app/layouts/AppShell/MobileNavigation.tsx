@@ -134,7 +134,7 @@ export const MobileNavigation: React.FC<MobileNavigationProps> = ({ open, onClos
       placement="left"
       onClose={onClose}
       open={open}
-      size={280}
+      width={280}
       styles={{ body: { padding: '8px 0' } }}
     >
       <Menu
