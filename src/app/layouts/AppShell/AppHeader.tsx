@@ -18,6 +18,8 @@ import {
   LogoutOutlined,
   SettingOutlined,
   BulbOutlined,
+  SunOutlined,
+  MoonOutlined,
   MenuOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
@@ -64,7 +66,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     { type: 'divider' },
     {
       key: 'theme',
-      icon: <BulbOutlined />,
+      icon: isDarkMode ? <SunOutlined /> : <MoonOutlined />,
       label: isDarkMode ? 'Light Mode' : 'Dark Mode',
       onClick: toggleDarkMode,
     },
@@ -162,7 +164,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         </Button>
       </Flex>
 
-      <Flex align="center" gap={16}>
+      <Flex align="center" gap={12}>
+        {/* Quick Theme Toggle Button */}
+        <Tooltip title={isDarkMode ? 'Switch to Light Theme' : 'Switch to Dark Theme'}>
+          <Button
+            type="text"
+            icon={isDarkMode ? <SunOutlined style={{ fontSize: 16 }} /> : <MoonOutlined style={{ fontSize: 16 }} />}
+            onClick={toggleDarkMode}
+            aria-label={isDarkMode ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+            style={{ width: 36, height: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+          />
+        </Tooltip>
+
         {/* Primary CTA */}
         <Tooltip title="Create new prompt (Shortcut: N)">
           <Button

@@ -85,6 +85,18 @@ export const PromptFormDrawer: React.FC<PromptFormDrawerProps> = ({
         isFavorite: Boolean(values.isFavorite),
       };
 
+      // Persist selection for future new prompt creation
+      try {
+        localStorage.setItem(
+          'pv_last_prompt_selection',
+          JSON.stringify({
+            categoryId: values.categoryId || undefined,
+            collectionId: values.collectionId || undefined,
+            tags: values.tags || [],
+          })
+        );
+      } catch {}
+
       if (isEditing && promptToEdit) {
         updateMutation.mutate(
           { id: promptToEdit.id, payload },

@@ -127,8 +127,12 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
         padding: '16px 20px',
         backgroundColor: token.colorBgContainer,
         borderRadius: token.borderRadius,
-        border: `1px solid ${isSelected ? token.colorPrimaryBorder : token.colorBorderSecondary}`,
-        borderLeft: prompt.isPinned ? `3px solid ${token.colorPrimary}` : undefined,
+        borderTop: `1px solid ${isSelected ? token.colorPrimaryBorder : token.colorBorderSecondary}`,
+        borderRight: `1px solid ${isSelected ? token.colorPrimaryBorder : token.colorBorderSecondary}`,
+        borderBottom: `1px solid ${isSelected ? token.colorPrimaryBorder : token.colorBorderSecondary}`,
+        borderLeft: prompt.isPinned
+          ? `3px solid ${token.colorPrimary}`
+          : `1px solid ${isSelected ? token.colorPrimaryBorder : token.colorBorderSecondary}`,
         marginBottom: 8,
         cursor: 'pointer',
         transition: 'all 0.15s ease',

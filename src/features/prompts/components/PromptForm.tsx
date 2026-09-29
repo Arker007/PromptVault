@@ -55,7 +55,25 @@ export const PromptForm: React.FC<PromptFormProps> = ({
       const initialDetected = extractTitleFromContent(initialValues.content || '');
       setDetectedTitle(initialDetected);
     } else {
-      form.resetFields();
+      // Remember and restore last saved category, collection, and tags for new prompts
+      let lastSelection: { categoryId?: string; collectionId?: string; tags?: string[] } = {};
+      try {
+        const saved = localStorage.getItem('pv_last_prompt_selection');
+        if (saved) {
+          lastSelection = JSON.parse(saved);
+        }
+      } catch {}
+
+      form.setFieldsValue({
+        title: '',
+        description: '',
+        content: '',
+        categoryId: lastSelection.categoryId || undefined,
+        collectionId: lastSelection.collectionId || undefined,
+        tags: Array.isArray(lastSelection.tags) ? lastSelection.tags : [],
+        isFavorite: false,
+        isPinned: false,
+      });
       setDetectedTitle(null);
     }
   }, [initialValues, form]);
