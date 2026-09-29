@@ -1,8 +1,20 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import multer from 'multer';
 import { getDb, saveDb } from './db.js';
 import { Database } from 'sql.js';
+import {
+  getEffectiveSupabaseConfig,
+  createSupabaseClient,
+  testSupabaseConnection,
+  ensureBucketExists,
+} from './supabase.js';
+
+const upload = multer({
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
+  storage: multer.memoryStorage(),
+});
 
 const JWT_SECRET = process.env.JWT_SECRET || 'promptvault-secret-key-prod-mode-2026';
 
@@ -1726,6 +1738,600 @@ apiRouter.post('/import', requireAuth, async (req: AuthRequest, res: Response) =
         tags: importedTags,
       },
     });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+// ================= SUPABASE STORAGE & BACKUP ROUTES =================
+
+// 1. Get Supabase Configuration
+apiRouter.get('/supabase/config', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const db = await getDb();
+    const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [req.userId]);
+    const config = getEffectiveSupabaseConfig(user?.preferences);
+
+    // Return masked key for security
+    const maskedKey = config.supabaseKey
+      ? config.supabaseKey.length > 12
+        ? `${config.supabaseKey.slice(0, 6)}...${config.supabaseKey.slice(-4)}`
+        : '••••••••••••'
+      : '';
+
+    return res.json({
+      supabaseUrl: config.supabaseUrl,
+      supabaseKey: maskedKey,
+      isKeySet: Boolean(config.supabaseKey),
+      backupBucket: config.backupBucket,
+      assetBucket: config.assetBucket,
+      autoBackupEnabled: config.autoBackupEnabled,
+      autoBackupFrequency: config.autoBackupFrequency,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+// 2. Save Supabase Configuration
+apiRouter.post('/supabase/config', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const { supabaseUrl, supabaseKey, backupBucket, assetBucket, autoBackupEnabled, autoBackupFrequency } = req.body;
+    const db = await getDb();
+    const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [req.userId]);
+
+    let prefs: any = {};
+    if (user?.preferences) {
+      try {
+        prefs = JSON.parse(user.preferences);
+      } catch {}
+    }
+
+    const currentSupabase = prefs.supabase || {};
+    prefs.supabase = {
+      ...currentSupabase,
+      supabaseUrl: supabaseUrl !== undefined ? supabaseUrl.trim() : currentSupabase.supabaseUrl,
+      supabaseKey: supabaseKey && !supabaseKey.includes('•••') && !supabaseKey.includes('...') ? supabaseKey.trim() : currentSupabase.supabaseKey,
+      backupBucket: backupBucket ? backupBucket.trim() : (currentSupabase.backupBucket || 'promptvault-backups'),
+      assetBucket: assetBucket ? assetBucket.trim() : (currentSupabase.assetBucket || 'promptvault-assets'),
+      autoBackupEnabled: autoBackupEnabled !== undefined ? Boolean(autoBackupEnabled) : Boolean(currentSupabase.autoBackupEnabled),
+      autoBackupFrequency: autoBackupFrequency || currentSupabase.autoBackupFrequency || 'daily',
+    };
+
+    runQuery(db, 'UPDATE users SET preferences = ?, updated_at = ? WHERE id = ?', [
+      JSON.stringify(prefs),
+      new Date().toISOString(),
+      req.userId,
+    ]);
+
+    return res.json({ success: true, message: 'Supabase configuration saved successfully' });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+// 3. Test Supabase Connection
+apiRouter.post('/supabase/test-connection', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    let { supabaseUrl, supabaseKey } = req.body;
+    if (!supabaseUrl || !supabaseKey || supabaseKey.includes('•••') || supabaseKey.includes('...')) {
+      const db = await getDb();
+      const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [req.userId]);
+      const config = getEffectiveSupabaseConfig(user?.preferences);
+      supabaseUrl = supabaseUrl || config.supabaseUrl;
+      supabaseKey = (supabaseKey && !supabaseKey.includes('•••') && !supabaseKey.includes('...')) ? supabaseKey : config.supabaseKey;
+    }
+
+    if (!supabaseUrl || !supabaseKey) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide both Supabase Project URL and Supabase Key to test the connection.',
+      });
+    }
+
+    const result = await testSupabaseConnection(supabaseUrl, supabaseKey);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 4. Create Cloud Backup to Supabase
+apiRouter.post('/supabase/backups/create', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const db = await getDb();
+    const user = queryOne<{ preferences: string; email: string; display_name: string }>(
+      db,
+      'SELECT preferences, email, display_name FROM users WHERE id = ?',
+      [userId]
+    );
+    const config = getEffectiveSupabaseConfig(user?.preferences);
+
+    const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+    if (!client) {
+      return res.status(400).json({
+        code: 'CONFIG_MISSING',
+        message: 'Supabase credentials are not configured. Please set your Supabase Project URL and API Key in Settings first.',
+      });
+    }
+
+    const bucketName = config.backupBucket || 'promptvault-backups';
+    const bucketCheck = await ensureBucketExists(client, bucketName, false);
+
+    // Gather user data
+    const categories = queryAll(db, 'SELECT * FROM categories WHERE user_id = ?', [userId]);
+    const collections = queryAll(db, 'SELECT * FROM collections WHERE user_id = ?', [userId]);
+    const tags = queryAll(db, 'SELECT * FROM tags WHERE user_id = ?', [userId]);
+    const prompts = queryAll(db, 'SELECT * FROM prompts WHERE user_id = ?', [userId]);
+
+    const promptIds = prompts.map((p: any) => p.id);
+    let promptTags: any[] = [];
+    let promptVersions: any[] = [];
+    if (promptIds.length > 0) {
+      const placeholders = promptIds.map(() => '?').join(',');
+      promptTags = queryAll(db, `SELECT * FROM prompt_tags WHERE prompt_id IN (${placeholders})`, promptIds);
+      promptVersions = queryAll(db, `SELECT * FROM prompt_versions WHERE prompt_id IN (${placeholders})`, promptIds);
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileName = `${userId}/promptvault_backup_${timestamp}.json`;
+
+    const snapshotData = {
+      version: '2.0.0',
+      exported_at: new Date().toISOString(),
+      user: {
+        id: userId,
+        email: user?.email,
+        displayName: user?.display_name,
+      },
+      stats: {
+        promptCount: prompts.length,
+        categoryCount: categories.length,
+        collectionCount: collections.length,
+        tagCount: tags.length,
+        versionCount: promptVersions.length,
+      },
+      data: {
+        categories,
+        collections,
+        tags,
+        prompts,
+        promptTags,
+        promptVersions,
+      },
+    };
+
+    const fileContent = Buffer.from(JSON.stringify(snapshotData, null, 2), 'utf-8');
+
+    const { data: uploadResult, error: uploadError } = await client.storage
+      .from(bucketName)
+      .upload(fileName, fileContent, {
+        contentType: 'application/json',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      let friendlyMessage = uploadError.message;
+      if (uploadError.message.includes('row-level security') || uploadError.message.includes('Bucket not found') || uploadError.message.includes('not found')) {
+        friendlyMessage = `Supabase Storage upload blocked on bucket "${bucketName}". Please either: 1) Create the bucket "${bucketName}" in your Supabase Dashboard under Storage, or 2) Provide your Supabase "service_role" key in Settings.`;
+      }
+      return res.status(500).json({
+        code: 'UPLOAD_FAILED',
+        message: friendlyMessage,
+        details: uploadError.message,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Cloud backup created and uploaded to Supabase successfully!',
+      backup: {
+        name: fileName.replace(`${userId}/`, ''),
+        path: fileName,
+        bucket: bucketName,
+        size: fileContent.length,
+        stats: snapshotData.stats,
+        createdAt: snapshotData.exported_at,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+// 5. List Backups from Supabase
+apiRouter.get('/supabase/backups', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const db = await getDb();
+    const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(user?.preferences);
+
+    const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+    if (!client) {
+      return res.json({
+        isConfigured: false,
+        backups: [],
+        message: 'Supabase not configured',
+      });
+    }
+
+    const bucketName = config.backupBucket || 'promptvault-backups';
+    const { data: files, error } = await client.storage.from(bucketName).list(userId, {
+      sortBy: { column: 'created_at', order: 'desc' },
+    });
+
+    if (error) {
+      return res.json({
+        isConfigured: true,
+        backups: [],
+        bucketName,
+        error: error.message,
+      });
+    }
+
+    const backups = (files || [])
+      .filter((f) => f.name.endsWith('.json'))
+      .map((f) => ({
+        name: f.name,
+        path: `${userId}/${f.name}`,
+        bucket: bucketName,
+        size: f.metadata?.size || 0,
+        createdAt: f.created_at || f.updated_at || new Date().toISOString(),
+        id: f.id,
+      }));
+
+    return res.json({
+      isConfigured: true,
+      bucketName,
+      backups,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+// 6. Restore from Supabase Backup
+apiRouter.post('/supabase/backups/restore', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { fileName, path: filePath } = req.body;
+    const targetPath = filePath || (fileName ? `${userId}/${fileName}` : null);
+
+    if (!targetPath) {
+      return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'Backup file path or name is required' });
+    }
+
+    const db = await getDb();
+    const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(user?.preferences);
+
+    const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+    if (!client) {
+      return res.status(400).json({ code: 'CONFIG_MISSING', message: 'Supabase credentials are not configured.' });
+    }
+
+    const bucketName = config.backupBucket || 'promptvault-backups';
+    const { data: fileData, error: downloadError } = await client.storage.from(bucketName).download(targetPath);
+
+    if (downloadError || !fileData) {
+      return res.status(500).json({
+        code: 'DOWNLOAD_FAILED',
+        message: `Failed to download backup from Supabase: ${downloadError?.message || 'File empty'}`,
+      });
+    }
+
+    const jsonText = await fileData.text();
+    const parsed = JSON.parse(jsonText);
+    const data = parsed.data || parsed;
+
+    if (!data || !Array.isArray(data.prompts)) {
+      return res.status(400).json({ code: 'INVALID_FORMAT', message: 'Invalid backup file structure.' });
+    }
+
+    const now = new Date().toISOString();
+    let restoredPrompts = 0;
+    let restoredCategories = 0;
+    let restoredCollections = 0;
+    let restoredTags = 0;
+
+    // Map Categories
+    const categoryMap: Record<string, string> = {};
+    if (Array.isArray(data.categories)) {
+      for (const cat of data.categories) {
+        let existing = queryOne<{ id: string }>(
+          db,
+          'SELECT id FROM categories WHERE user_id = ? AND LOWER(name) = LOWER(?)',
+          [userId, cat.name]
+        );
+        if (existing) {
+          categoryMap[cat.id] = existing.id;
+        } else {
+          const newId = `cat_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          runQuery(
+            db,
+            'INSERT INTO categories (id, user_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+            [newId, userId, cat.name, cat.description || null, now, now]
+          );
+          categoryMap[cat.id] = newId;
+          restoredCategories++;
+        }
+      }
+    }
+
+    // Map Collections
+    const collectionMap: Record<string, string> = {};
+    if (Array.isArray(data.collections)) {
+      for (const col of data.collections) {
+        let existing = queryOne<{ id: string }>(
+          db,
+          'SELECT id FROM collections WHERE user_id = ? AND LOWER(name) = LOWER(?)',
+          [userId, col.name]
+        );
+        if (existing) {
+          collectionMap[col.id] = existing.id;
+        } else {
+          const newId = `col_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          const catId = col.category_id ? categoryMap[col.category_id] || null : null;
+          runQuery(
+            db,
+            'INSERT INTO collections (id, user_id, category_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [newId, userId, catId, col.name, col.description || null, now, now]
+          );
+          collectionMap[col.id] = newId;
+          restoredCollections++;
+        }
+      }
+    }
+
+    // Map Tags
+    const tagMap: Record<string, string> = {};
+    if (Array.isArray(data.tags)) {
+      for (const tag of data.tags) {
+        let existing = queryOne<{ id: string }>(
+          db,
+          'SELECT id FROM tags WHERE user_id = ? AND LOWER(name) = LOWER(?)',
+          [userId, tag.name]
+        );
+        if (existing) {
+          tagMap[tag.id] = existing.id;
+        } else {
+          const newId = `tag_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          runQuery(db, 'INSERT INTO tags (id, user_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [
+            newId,
+            userId,
+            tag.name.toLowerCase().trim(),
+            now,
+            now,
+          ]);
+          tagMap[tag.id] = newId;
+          restoredTags++;
+        }
+      }
+    }
+
+    // Restore Prompts
+    for (const p of data.prompts) {
+      const newPromptId = `prm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const targetCatId = p.category_id ? categoryMap[p.category_id] || null : null;
+      const targetColId = p.collection_id ? collectionMap[p.collection_id] || null : null;
+
+      runQuery(
+        db,
+        `INSERT INTO prompts (id, user_id, category_id, collection_id, title, description, content, is_favorite, is_pinned, is_archived, copy_count, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          newPromptId,
+          userId,
+          targetCatId,
+          targetColId,
+          p.title,
+          p.description || null,
+          p.content,
+          p.is_favorite ? 1 : 0,
+          p.is_pinned ? 1 : 0,
+          p.is_archived ? 1 : 0,
+          p.copy_count || 0,
+          p.created_at || now,
+          p.updated_at || now,
+        ]
+      );
+
+      // Restore Versions
+      runQuery(
+        db,
+        `INSERT INTO prompt_versions (id, prompt_id, version_number, title, description, content, created_at)
+         VALUES (?, ?, 1, ?, ?, ?, ?)`,
+        [`ver_${newPromptId}_1`, newPromptId, p.title, p.description || null, p.content, now]
+      );
+
+      restoredPrompts++;
+    }
+
+    return res.json({
+      success: true,
+      message: `Successfully restored ${restoredPrompts} prompts, ${restoredCategories} categories, and ${restoredCollections} collections from Supabase.`,
+      restored: {
+        prompts: restoredPrompts,
+        categories: restoredCategories,
+        collections: restoredCollections,
+        tags: restoredTags,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+// 7. Delete Supabase Backup
+apiRouter.delete('/supabase/backups', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { fileName, path: filePath } = req.body;
+    const targetPath = filePath || (fileName ? `${userId}/${fileName}` : null);
+
+    if (!targetPath) {
+      return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'File path or name is required' });
+    }
+
+    const db = await getDb();
+    const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(user?.preferences);
+
+    const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+    if (!client) {
+      return res.status(400).json({ code: 'CONFIG_MISSING', message: 'Supabase credentials are not configured.' });
+    }
+
+    const bucketName = config.backupBucket || 'promptvault-backups';
+    const { error } = await client.storage.from(bucketName).remove([targetPath]);
+
+    if (error) {
+      return res.status(500).json({ code: 'DELETE_FAILED', message: error.message });
+    }
+
+    return res.json({ success: true, message: 'Backup snapshot removed from Supabase Storage' });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+// 8. Upload File/Asset to Supabase Storage
+apiRouter.post('/supabase/storage/upload', requireAuth, upload.single('file'), async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    if (!req.file) {
+      return res.status(400).json({ code: 'FILE_MISSING', message: 'No file provided for upload' });
+    }
+
+    const db = await getDb();
+    const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(user?.preferences);
+
+    const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+    if (!client) {
+      return res.status(400).json({
+        code: 'CONFIG_MISSING',
+        message: 'Supabase credentials are not configured. Please enter your Supabase Project URL and API Key.',
+      });
+    }
+
+    const bucketName = config.assetBucket || 'promptvault-assets';
+    await ensureBucketExists(client, bucketName, true);
+
+    const cleanOriginalName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = `${userId}/${Date.now()}_${cleanOriginalName}`;
+
+    const { error: uploadError } = await client.storage
+      .from(bucketName)
+      .upload(storagePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      let friendlyMessage = uploadError.message;
+      if (uploadError.message.includes('row-level security') || uploadError.message.includes('Bucket not found') || uploadError.message.includes('not found')) {
+        friendlyMessage = `Supabase Storage upload blocked on bucket "${bucketName}". Please either: 1) Create the bucket "${bucketName}" in your Supabase Dashboard under Storage, or 2) Provide your Supabase "service_role" key in Settings.`;
+      }
+      return res.status(500).json({ code: 'UPLOAD_FAILED', message: friendlyMessage, details: uploadError.message });
+    }
+
+    // Get public or signed URL
+    const { data: urlData } = client.storage.from(bucketName).getPublicUrl(storagePath);
+
+    return res.json({
+      success: true,
+      file: {
+        name: cleanOriginalName,
+        path: storagePath,
+        bucket: bucketName,
+        size: req.file.size,
+        mimeType: req.file.mimetype,
+        url: urlData.publicUrl,
+        uploadedAt: new Date().toISOString(),
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+// 9. List Files/Assets from Supabase Storage
+apiRouter.get('/supabase/storage/files', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const db = await getDb();
+    const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(user?.preferences);
+
+    const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+    if (!client) {
+      return res.json({ isConfigured: false, files: [] });
+    }
+
+    const bucketName = config.assetBucket || 'promptvault-assets';
+    const { data: files, error } = await client.storage.from(bucketName).list(userId, {
+      sortBy: { column: 'created_at', order: 'desc' },
+    });
+
+    if (error) {
+      return res.json({ isConfigured: true, bucketName, files: [], error: error.message });
+    }
+
+    const mappedFiles = (files || []).map((f) => {
+      const filePath = `${userId}/${f.name}`;
+      const { data: urlData } = client.storage.from(bucketName).getPublicUrl(filePath);
+      return {
+        name: f.name,
+        path: filePath,
+        bucket: bucketName,
+        size: f.metadata?.size || 0,
+        mimetype: f.metadata?.mimetype || 'application/octet-stream',
+        url: urlData.publicUrl,
+        createdAt: f.created_at || f.updated_at || new Date().toISOString(),
+      };
+    });
+
+    return res.json({
+      isConfigured: true,
+      bucketName,
+      files: mappedFiles,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+// 10. Delete Asset File from Supabase Storage
+apiRouter.delete('/supabase/storage/files', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { path: filePath, name: fileName } = req.body;
+    const targetPath = filePath || (fileName ? `${userId}/${fileName}` : null);
+
+    if (!targetPath) {
+      return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'File path is required' });
+    }
+
+    const db = await getDb();
+    const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(user?.preferences);
+
+    const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+    if (!client) {
+      return res.status(400).json({ code: 'CONFIG_MISSING', message: 'Supabase credentials are not configured.' });
+    }
+
+    const bucketName = config.assetBucket || 'promptvault-assets';
+    const { error } = await client.storage.from(bucketName).remove([targetPath]);
+
+    if (error) {
+      return res.status(500).json({ code: 'DELETE_FAILED', message: error.message });
+    }
+
+    return res.json({ success: true, message: 'Asset deleted from Supabase Storage' });
   } catch (err: any) {
     return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
   }

@@ -83,7 +83,7 @@ export const PromptVersionsDrawer: React.FC<PromptVersionsDrawerProps> = ({
       {isError && (
         <Alert
           type="error"
-          message="Failed to load version history"
+          title="Failed to load version history"
           showIcon
         />
       )}

@@ -42,3 +42,45 @@ pre.prompt-code-block {
   word-break: break-word;
   margin: 0;
 }
+
+/* Ant Design ProLayout Collapsed Sider Icon Fixes */
+.ant-layout-sider-collapsed .ant-menu-item .ant-menu-title-content,
+.ant-menu-inline-collapsed .ant-menu-item .ant-menu-title-content,
+.ant-pro-sider.ant-layout-sider-collapsed .ant-menu-item .ant-menu-title-content {
+  display: inline-flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  width: 100% !important;
+  height: 100% !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.ant-pro-sider .ant-menu-item .anticon,
+.ant-pro-sider .ant-menu-item .ant-pro-base-menu-item-icon,
+.ant-pro-sider-menu .ant-menu-item .anticon,
+.ant-layout-sider-collapsed .ant-menu-item .anticon,
+.ant-menu-inline-collapsed .ant-menu-item .anticon,
+.ant-menu-item-icon,
+.ant-pro-base-menu-item-icon {
+  font-size: 16px !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 16px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.ant-pro-sider.ant-layout-sider-collapsed .ant-menu-item,
+.ant-layout-sider-collapsed .ant-menu-item,
+.ant-menu-inline-collapsed .ant-menu-item {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+

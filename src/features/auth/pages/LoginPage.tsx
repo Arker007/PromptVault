@@ -78,7 +78,7 @@ export const LoginPage: React.FC = () => {
 
         {isExpired && (
           <Alert
-            message="Session Expired"
+            title="Session Expired"
             description="Your session has expired. Please sign in again."
             type="warning"
             showIcon

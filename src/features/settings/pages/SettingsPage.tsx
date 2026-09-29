@@ -21,6 +21,7 @@ import {
   DownloadOutlined,
   UploadOutlined,
   BulbOutlined,
+  CloudServerOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '@/features/auth/index.ts';
 import { useThemeMode } from '@/app/providers/ThemeProvider.tsx';
@@ -28,6 +29,7 @@ import { PageHeader } from '@/shared/ui/PageHeader.tsx';
 import { apiClient } from '@/shared/api/apiClient.ts';
 import { authApi } from '@/features/auth/api/authApi.ts';
 import { message } from '@/shared/lib/message.ts';
+import { SupabaseStorageSettings } from '../components/SupabaseStorageSettings.tsx';
 
 const { Text, Title, Paragraph } = Typography;
 
@@ -307,11 +309,21 @@ export const SettingsPage: React.FC = () => {
               ),
             },
             {
+              key: 'supabase',
+              label: (
+                <Space orientation="horizontal" size={6}>
+                  <CloudServerOutlined />
+                  <span>Cloud & Supabase Storage</span>
+                </Space>
+              ),
+              children: <SupabaseStorageSettings />,
+            },
+            {
               key: 'backup',
               label: (
                 <Space orientation="horizontal" size={6}>
                   <DownloadOutlined />
-                  <span>Backup & Portability</span>
+                  <span>Local Backup & Import</span>
                 </Space>
               ),
               children: (

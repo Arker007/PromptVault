@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Form, Input, Select, Switch, Typography, Space, Button, Flex, theme } from 'antd';
+import { Form, Input, Select, Switch, Typography, Space, Button, Flex, Upload, theme } from 'antd';
 import type { FormInstance } from 'antd';
-import { BulbOutlined } from '@ant-design/icons';
+import { BulbOutlined, PaperClipOutlined } from '@ant-design/icons';
 import { CategoryItem, CollectionItem, TagItem } from '@/shared/types/index.ts';
+import { message } from '@/shared/lib/message.ts';
 
 const { Text } = Typography;
 
@@ -77,6 +78,40 @@ export const PromptForm: React.FC<PromptFormProps> = ({
       setDetectedTitle(null);
     }
   }, [initialValues, form]);
+
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+
+  const handleUploadAttachment = async (file: File) => {
+    setIsUploadingAttachment(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/supabase/storage/upload', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('pv_token') || ''}`,
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to upload attachment to Supabase');
+      }
+
+      const currentContent = form.getFieldValue('content') || '';
+      const markdownRef = `\n\n[Attached Asset: ${data.file.name}](${data.file.url})`;
+      form.setFieldValue('content', currentContent + markdownRef);
+      message.success(`Attached ${file.name} to prompt via Supabase Storage`);
+      if (onChange) onChange();
+    } catch (err: any) {
+      message.error(err.message || 'Failed to upload attachment');
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+    return false;
+  };
 
   const handleValuesChange = (changedValues: any, allValues: any) => {
     if (changedValues.content !== undefined) {
@@ -165,12 +200,29 @@ export const PromptForm: React.FC<PromptFormProps> = ({
       <Form.Item
         name="content"
         label={
-          <Space orientation="horizontal" size={6}>
-            <span>Prompt Content</span>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              (Use {'{{variable}}'} for fillable inputs)
-            </Text>
-          </Space>
+          <Flex justify="space-between" align="center" style={{ width: '100%' }}>
+            <Space orientation="horizontal" size={6}>
+              <span>Prompt Content</span>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                (Use {'{{variable}}'} for fillable inputs)
+              </Text>
+            </Space>
+
+            <Upload
+              beforeUpload={handleUploadAttachment}
+              showUploadList={false}
+              multiple={false}
+            >
+              <Button
+                size="small"
+                icon={<PaperClipOutlined />}
+                loading={isUploadingAttachment}
+                style={{ fontSize: 12, height: 26, padding: '0 8px' }}
+              >
+                Attach File to Supabase
+              </Button>
+            </Upload>
+          </Flex>
         }
         rules={[{ required: true, message: 'Please provide prompt content' }]}
       >

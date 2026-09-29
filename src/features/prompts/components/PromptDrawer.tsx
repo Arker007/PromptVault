@@ -228,7 +228,7 @@ export const PromptDrawer: React.FC<PromptDrawerProps> = ({
 
         {isError && (
           <Alert
-            message="Error"
+            title="Error"
             description="Failed to load prompt details. It may have been deleted."
             type="error"
             showIcon
