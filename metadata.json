@@ -1,0 +1,6 @@
+{
+  "name": "PromptVault",
+  "description": "Secure personal prompt knowledge base for finding, inspecting, copying, reusing, and managing prompts fast.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
