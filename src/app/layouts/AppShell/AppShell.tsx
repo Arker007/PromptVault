@@ -14,6 +14,7 @@ import type { MenuProps } from 'antd';
 import {
   ProLayout,
   ProConfigProvider,
+  enUSIntl,
 } from '@ant-design/pro-components';
 import {
   PlusOutlined,
@@ -177,7 +178,7 @@ export const AppShell: React.FC = () => {
   ];
 
   return (
-    <ProConfigProvider dark={isDarkMode}>
+    <ProConfigProvider dark={isDarkMode} intl={enUSIntl}>
       <div
         style={{
           minHeight: '100vh',

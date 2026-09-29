@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { ConfigProvider, App as AntdApp } from 'antd';
+import enUS from 'antd/locale/en_US';
 import { getAppTheme } from '../config/theme.ts';
 import { AppContextListener } from '@/shared/lib/message.ts';
 
@@ -45,7 +46,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   return (
     <ThemeContext.Provider value={{ isDarkMode, setDarkMode: setIsDarkMode, toggleDarkMode }}>
-      <ConfigProvider theme={themeConfig}>
+      <ConfigProvider theme={themeConfig} locale={enUS}>
         <AntdApp>
           <AppContextListener />
           {children}
