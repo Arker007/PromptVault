@@ -166,52 +166,39 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
               </div>
             )}
 
-            {isAuthenticated ? (
-              <>
-                <Tooltip title={prompt.isPinned ? 'Unpin from top' : 'Pin to top'}>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={
-                      prompt.isPinned ? (
-                        <PushpinFilled style={{ color: token.colorPrimary, fontSize: 16 }} />
-                      ) : (
-                        <PushpinOutlined style={{ color: token.colorTextSecondary, fontSize: 16 }} />
-                      )
-                    }
-                    onClick={handlePinClick}
-                    aria-label={prompt.isPinned ? 'Unpin from top' : 'Pin to top'}
-                    style={{ padding: 0, width: 24, height: 24 }}
-                  />
-                </Tooltip>
+            <Tooltip title={prompt.isPinned ? 'Unpin from top' : 'Pin to top'}>
+              <Button
+                type="text"
+                size="small"
+                icon={
+                  prompt.isPinned ? (
+                    <PushpinFilled style={{ color: token.colorPrimary, fontSize: 16 }} />
+                  ) : (
+                    <PushpinOutlined style={{ color: token.colorTextSecondary, fontSize: 16 }} />
+                  )
+                }
+                onClick={handlePinClick}
+                aria-label={prompt.isPinned ? 'Unpin from top' : 'Pin to top'}
+                style={{ padding: 0, width: 24, height: 24 }}
+              />
+            </Tooltip>
 
-                <Tooltip title={prompt.isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={
-                      prompt.isFavorite ? (
-                        <StarFilled style={{ color: '#faad14', fontSize: 16 }} />
-                      ) : (
-                        <StarOutlined style={{ color: token.colorTextSecondary, fontSize: 16 }} />
-                      )
-                    }
-                    onClick={handleFavoriteClick}
-                    aria-label={prompt.isFavorite ? 'Unfavorite' : 'Favorite'}
-                    style={{ padding: 0, width: 24, height: 24 }}
-                  />
-                </Tooltip>
-              </>
-            ) : (
-              <>
-                {prompt.isFavorite && (
-                  <StarFilled style={{ color: '#faad14', fontSize: 16 }} />
-                )}
-                {prompt.isPinned && (
-                  <PushpinFilled style={{ color: token.colorPrimary, fontSize: 16 }} />
-                )}
-              </>
-            )}
+            <Tooltip title={prompt.isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
+              <Button
+                type="text"
+                size="small"
+                icon={
+                  prompt.isFavorite ? (
+                    <StarFilled style={{ color: '#faad14', fontSize: 16 }} />
+                  ) : (
+                    <StarOutlined style={{ color: token.colorTextSecondary, fontSize: 16 }} />
+                  )
+                }
+                onClick={handleFavoriteClick}
+                aria-label={prompt.isFavorite ? 'Unfavorite' : 'Favorite'}
+                style={{ padding: 0, width: 24, height: 24 }}
+              />
+            </Tooltip>
 
             <Text
               strong

@@ -2,32 +2,41 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { message } from '@/shared/lib/message.ts';
 import { promptApi } from '../api/promptApi.ts';
 import { promptKeys } from '../api/promptKeys.ts';
+import { useAuth } from '@/features/auth/index.ts';
+import { guestStorage } from '../lib/guestStorage.ts';
 
 export function usePromptActions() {
   const queryClient = useQueryClient();
+  const { isAuthenticated } = useAuth();
 
   const favoriteMutation = useMutation({
-    mutationFn: ({ id, isFavorite }: { id: string; isFavorite?: boolean }) =>
-      promptApi.toggleFavorite(id, isFavorite),
+    mutationFn: async ({ id, isFavorite }: { id: string; isFavorite?: boolean }) => {
+      if (!isAuthenticated) {
+        const nextFav = isFavorite !== undefined ? isFavorite : !guestStorage.isFavorite(id);
+        guestStorage.setFavorite(id, nextFav);
+        return { success: true, isFavorite: nextFav };
+      }
+      return promptApi.toggleFavorite(id, isFavorite);
+    },
     onSuccess: (res, vars) => {
       message.success(res.isFavorite ? 'Added to favorites' : 'Removed from favorites');
-      queryClient.setQueryData(promptKeys.detail(vars.id), (old: any) =>
-        old ? { ...old, isFavorite: res.isFavorite } : old
-      );
-      queryClient.invalidateQueries({ queryKey: promptKeys.lists() });
+      queryClient.invalidateQueries();
     },
     onError: () => message.error('Failed to update favorite status'),
   });
 
   const pinMutation = useMutation({
-    mutationFn: ({ id, isPinned }: { id: string; isPinned?: boolean }) =>
-      promptApi.togglePin(id, isPinned),
+    mutationFn: async ({ id, isPinned }: { id: string; isPinned?: boolean }) => {
+      if (!isAuthenticated) {
+        const nextPin = isPinned !== undefined ? isPinned : !guestStorage.isPinned(id);
+        guestStorage.setPinned(id, nextPin);
+        return { success: true, isPinned: nextPin };
+      }
+      return promptApi.togglePin(id, isPinned);
+    },
     onSuccess: (res, vars) => {
       message.success(res.isPinned ? 'Prompt pinned to top' : 'Prompt unpinned');
-      queryClient.setQueryData(promptKeys.detail(vars.id), (old: any) =>
-        old ? { ...old, isPinned: res.isPinned } : old
-      );
-      queryClient.invalidateQueries({ queryKey: promptKeys.lists() });
+      queryClient.invalidateQueries();
     },
     onError: () => message.error('Failed to update pin status'),
   });
