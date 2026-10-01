@@ -299,7 +299,7 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
           gap={8}
           style={{ paddingLeft: 34 }}
         >
-          <Space orientation="horizontal" size={6} wrap>
+          <Space direction="horizontal" size={6} wrap>
             {prompt.category && (
               <Tag
                 icon={<FolderOutlined />}
@@ -346,7 +346,7 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
             ))}
           </Space>
 
-          <Space orientation="horizontal" size={14}>
+          <Space direction="horizontal" size={14}>
             {prompt.copyCount > 0 && (
               <Tooltip title="Total times copied to clipboard">
                 <Text type="secondary" style={{ fontSize: 12, cursor: 'pointer' }}>

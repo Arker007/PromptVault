@@ -173,7 +173,7 @@ export const CollectionsPage: React.FC = () => {
       align: 'right',
       width: 120,
       render: (_, record) => (
-        <Space orientation="horizontal" size={4}>
+        <Space direction="horizontal" size={4}>
           <Tooltip title="Edit Collection">
             <Button
               type="text"
@@ -239,7 +239,7 @@ export const CollectionsPage: React.FC = () => {
         onCancel={() => setModalOpen(false)}
         onOk={() => form.submit()}
         confirmLoading={saveMutation.isPending}
-        destroyOnHidden
+        destroyOnClose
       >
         <Form
           form={form}

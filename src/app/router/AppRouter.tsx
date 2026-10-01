@@ -37,6 +37,8 @@ export const AppRouter: React.FC = () => {
           <Route path="/settings/profile" element={<SettingsPage />} />
           <Route path="/settings/security" element={<SettingsPage />} />
           <Route path="/settings/preferences" element={<SettingsPage />} />
+          <Route path="/settings/supabase" element={<SettingsPage />} />
+          <Route path="/settings/backup" element={<SettingsPage />} />
         </Route>
 
         {/* Fallback */}

@@ -1,8 +1,10 @@
 import React from 'react';
-import { Button, Tag, Space, Flex, Tooltip, Alert, theme } from 'antd';
+import { Button, Tag, Space, Flex, Tooltip, Alert, Popconfirm, theme } from 'antd';
 import { ProCard, ProTable, type ProColumns } from '@ant-design/pro-components';
 import {
   CloudUploadOutlined,
+  CloudDownloadOutlined,
+  ClearOutlined,
   CodeOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
@@ -15,6 +17,10 @@ interface SupabaseDataSyncCardProps {
   isDbStatsLoading?: boolean;
   onPushLocalToRemote: () => void;
   isSyncing?: boolean;
+  onPullRemoteToLocal?: () => void;
+  isFetchingRemote?: boolean;
+  onDeduplicate?: () => void;
+  isDeduplicating?: boolean;
   stats?: SupabaseDbStats['stats'];
 }
 
@@ -25,6 +31,10 @@ export const SupabaseDataSyncCard: React.FC<SupabaseDataSyncCardProps> = ({
   isDbStatsLoading,
   onPushLocalToRemote,
   isSyncing,
+  onPullRemoteToLocal,
+  isFetchingRemote,
+  onDeduplicate,
+  isDeduplicating,
   stats,
 }) => {
   const { token } = theme.useToken();
@@ -86,10 +96,10 @@ export const SupabaseDataSyncCard: React.FC<SupabaseDataSyncCardProps> = ({
 
   return (
     <ProCard
-      title="PostgreSQL Database Sync & Data Migration"
+      title="Supabase Database Sync & Deduplication"
       headerBordered
       extra={
-        <Space orientation="horizontal" size={8}>
+        <Space direction="horizontal" size={8}>
           {isConfigured && (
             <Tooltip title="Inspect relational SQL DDL schema and RLS rules">
               <Button
@@ -116,26 +126,55 @@ export const SupabaseDataSyncCard: React.FC<SupabaseDataSyncCardProps> = ({
         type="info"
         showIcon
         style={{ marginBottom: 16 }}
-        title="Bi-Directional Persistence & Cloud Backup"
-        description="Your PromptVault library automatically stays synchronized with your local sqlite cache. Use the action below to push local prompt templates to your remote Supabase PostgreSQL database."
+        message="Auto-Fetching, De-duplication & Bi-Directional Supabase API Sync"
+        description="Your PromptVault account automatically fetches and synchronizes data with your Supabase PostgreSQL instance. All duplicate prompts from past restores or syncs are automatically detected, consolidated, and cleaned."
       />
 
       <Flex justify="space-between" align="center" wrap="wrap" gap={12} style={{ marginBottom: 16 }}>
         <div>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Sync Action:</span>{' '}
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Sync & Cleanup Actions:</span>{' '}
           <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
-            Upsert local database records to remote PostgreSQL instance
+            Auto-fetch from Supabase API, push to Supabase, or clean duplicate prompts
           </span>
         </div>
 
-        <Button
-          type="primary"
-          icon={<CloudUploadOutlined />}
-          loading={isSyncing}
-          onClick={onPushLocalToRemote}
-        >
-          Push Local Library to Supabase
-        </Button>
+        <Space wrap size={10}>
+          {onPullRemoteToLocal && (
+            <Button
+              type="primary"
+              icon={<CloudDownloadOutlined />}
+              loading={isFetchingRemote}
+              onClick={onPullRemoteToLocal}
+            >
+              Fetch / Pull Data from Supabase
+            </Button>
+          )}
+
+          <Button
+            icon={<CloudUploadOutlined />}
+            loading={isSyncing}
+            onClick={onPushLocalToRemote}
+          >
+            Push Local Library to Supabase
+          </Button>
+
+          {onDeduplicate && (
+            <Popconfirm
+              title="Remove duplicate prompts?"
+              description="This will scan your library, merge duplicate prompt templates, and consolidate tag and version history."
+              onConfirm={onDeduplicate}
+              okText="Clean Duplicates"
+              cancelText="Cancel"
+            >
+              <Button
+                icon={<ClearOutlined />}
+                loading={isDeduplicating}
+              >
+                Clean Duplicate Prompts
+              </Button>
+            </Popconfirm>
+          )}
+        </Space>
       </Flex>
 
       <ProTable

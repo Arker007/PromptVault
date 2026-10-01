@@ -1,5 +1,5 @@
 import React from 'react';
-import { Listy, Skeleton, Pagination, Flex } from 'antd';
+import { List, Skeleton, Pagination, Flex, theme } from 'antd';
 import { PromptSummaryDTO } from '@/shared/types/index.ts';
 import { PromptListItem } from './PromptListItem.tsx';
 import { PromptEmptyState } from './PromptEmptyState.tsx';
@@ -37,6 +37,8 @@ export const PromptList: React.FC<PromptListProps> = ({
   onClearFilters,
   onCreatePrompt,
 }) => {
+  const { token } = theme.useToken();
+
   if (isLoading && items.length === 0) {
     return (
       <div style={{ padding: '8px 0' }}>
@@ -45,9 +47,9 @@ export const PromptList: React.FC<PromptListProps> = ({
             key={n}
             style={{
               padding: '16px 20px',
-              backgroundColor: '#fff',
-              border: '1px solid #f0f0f0',
-              borderRadius: 6,
+              backgroundColor: token.colorBgContainer,
+              border: `1px solid ${token.colorBorderSecondary}`,
+              borderRadius: token.borderRadius,
               marginBottom: 8,
             }}
           >
@@ -70,11 +72,11 @@ export const PromptList: React.FC<PromptListProps> = ({
 
   return (
     <div>
-      <Listy
-        items={items}
+      <List
+        dataSource={items}
         rowKey="id"
-        virtual={false}
-        itemRender={(item) => (
+        split={false}
+        renderItem={(item) => (
           <PromptListItem
             key={item.id}
             prompt={item}

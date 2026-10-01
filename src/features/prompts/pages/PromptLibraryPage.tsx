@@ -16,6 +16,8 @@ import { usePrompts } from '../hooks/usePrompts.ts';
 import { promptApi } from '../api/promptApi.ts';
 import { promptKeys } from '../api/promptKeys.ts';
 import { apiClient } from '@/shared/api/apiClient.ts';
+import { useSupabaseSync } from '@/features/supabase/hooks/useSupabaseSync.ts';
+import { useSupabaseConfig } from '@/features/supabase/hooks/useSupabaseConfig.ts';
 import {
   PromptQueryParams,
   PromptSummaryDTO,
@@ -38,6 +40,11 @@ export const PromptLibraryPage: React.FC<PromptLibraryPageProps> = ({ preset = '
   const [editingPrompt, setEditingPrompt] = useState<PromptSummaryDTO | null>(null);
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [variablesModalPrompt, setVariablesModalPrompt] = useState<PromptSummaryDTO | null>(null);
+
+  // Supabase sync hooks
+  const { config } = useSupabaseConfig();
+  const { pullRemoteToLocal, isFetchingRemote } = useSupabaseSync();
+  const isSupabaseConfigured = Boolean(config?.isKeySet || config?.supabaseUrl);
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -257,6 +264,8 @@ export const PromptLibraryPage: React.FC<PromptLibraryPageProps> = ({ preset = '
         }}
         onClearSelection={() => setSelectedIds([])}
         isArchivedView={preset === 'archived'}
+        onFetchSupabase={isSupabaseConfigured ? () => pullRemoteToLocal() : undefined}
+        isFetchingSupabase={isFetchingRemote}
       />
 
       {/* Active Filters */}

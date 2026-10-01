@@ -106,7 +106,7 @@ export const SupabaseBackupsCard: React.FC<SupabaseBackupsCardProps> = ({
         title="Backup Snapshots & JSON Storage"
         headerBordered
         extra={
-          <Space orientation="horizontal" size={8}>
+          <Space direction="horizontal" size={8}>
             <Button
               icon={<ReloadOutlined />}
               size="small"
@@ -144,7 +144,7 @@ export const SupabaseBackupsCard: React.FC<SupabaseBackupsCardProps> = ({
         onCancel={() => setSnapshotModalOpen(false)}
         onOk={handleCreateSnapshot}
         confirmLoading={isCreatingSnapshot}
-        destroyOnHidden
+        destroyOnClose
       >
         <div style={{ paddingTop: 12 }}>
           <p style={{ marginBottom: 12, fontSize: 13 }}>

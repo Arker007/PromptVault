@@ -65,7 +65,7 @@ export const LoginPage: React.FC = () => {
         }}
       >
         <Flex vertical align="center" style={{ marginBottom: 24, textAlign: 'center' }}>
-          <Space orientation="horizontal" size={8} style={{ marginBottom: 4 }}>
+          <Space direction="horizontal" size={8} style={{ marginBottom: 4 }}>
             <KeyOutlined style={{ fontSize: 20, color: token.colorPrimary }} />
             <Title level={4} style={{ margin: 0, fontWeight: 600 }}>
               PromptVault
@@ -78,7 +78,7 @@ export const LoginPage: React.FC = () => {
 
         {isExpired && (
           <Alert
-            title="Session Expired"
+            message="Session Expired"
             description="Your session has expired. Please sign in again."
             type="warning"
             showIcon

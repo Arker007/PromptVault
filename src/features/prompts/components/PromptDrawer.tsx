@@ -131,7 +131,7 @@ export const PromptDrawer: React.FC<PromptDrawerProps> = ({
       <Drawer
         open={Boolean(promptId)}
         onClose={onClose}
-        size={760}
+        width={760}
         title={
           prompt ? (
             <Flex justify="space-between" align="center" style={{ width: '100%', paddingRight: 8 }}>
@@ -190,7 +190,7 @@ export const PromptDrawer: React.FC<PromptDrawerProps> = ({
         footer={
           prompt ? (
             <Flex justify="space-between" align="center">
-              <Space orientation="horizontal" size={8}>
+              <Space direction="horizontal" size={8}>
                 <Button
                   icon={<EditOutlined />}
                   onClick={() => {
@@ -236,7 +236,7 @@ export const PromptDrawer: React.FC<PromptDrawerProps> = ({
 
         {isError && (
           <Alert
-            title="Error"
+            message="Error"
             description="Failed to load prompt details. It may have been deleted."
             type="error"
             showIcon

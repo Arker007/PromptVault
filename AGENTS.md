@@ -10,25 +10,7 @@
 
 ---
 
-## 2. Modern Non-Deprecated Component Standards
-When writing or updating Ant Design components, strictly adhere to non-deprecated property definitions:
-
-| Component | Modern Non-Deprecated Prop | Deprecated Prop (DO NOT USE) |
-|---|---|---|
-| `<Modal>`, `<Drawer>`, `<Popover>`, `<Tooltip>`, `<Dropdown>` | `open={boolean}` | `visible={boolean}` |
-| `<Dropdown>` | `menu={{ items }}` | `overlay={...}` |
-| `<Space>` | `direction="horizontal" \| "vertical"` | `orientation="..."` |
-| `<Alert>` | `message={ReactNode}` (header text) | `title={ReactNode}` |
-| `<Modal>`, `<Drawer>` | `destroyOnClose={boolean}` | `destroyOnHidden` |
-| `<Drawer>` | `width={number}` or `size="default" \| "large"` | `size={number}` |
-| `<Select>`, `<TreeSelect>`, `<Cascader>` | `popupMatchSelectWidth={boolean}` | `dropdownMatchSelectWidth` |
-| `<Tabs>`, `<Collapse>`, `<Descriptions>`, `<Breadcrumb>`, `<Menu>` | `items={[...]}` | Children nodes (`<TabPane>`, `<Panel>`, `<Descriptions.Item>`, `<Breadcrumb.Item>`, `<Menu.Item>`) |
-| `<Modal>`, `<Drawer>`, `<Card>` | `styles={{ body: ..., header: ..., mask: ... }}` | `bodyStyle`, `headStyle`, `maskStyle` |
-| `<Button>` | `danger={boolean}` | `type="danger"` |
-
----
-
-## 3. Approved Ant Design Component Mapping
+## 2. Approved Ant Design Component Mapping
 
 | UI Category | Approved Components |
 |---|---|
@@ -42,7 +24,7 @@ When writing or updating Ant Design components, strictly adhere to non-deprecate
 
 ---
 
-## 4. Styling with Ant Design Design Tokens (`theme.useToken`)
+## 3. Styling with Ant Design Design Tokens (`theme.useToken`)
 Always use Ant Design's unified token system to ensure 100% theme compatibility (Light & Dark modes):
 
 ```tsx
@@ -76,21 +58,21 @@ const MyComponent: React.FC = () => {
 
 ---
 
-## 5. Internationalization & English Language
+## 4. Internationalization & English Language
 - `ConfigProvider` must always include `locale={enUS}` from `antd/locale/en_US`.
 - `ProConfigProvider` must always include `intl={enUSIntl}` from `@ant-design/pro-components`.
 - All custom strings, placeholders, empty states, and validation messages must be in clear English.
 
 ---
 
-## 6. State & Server Communication Standards
+## 5. State & Server Communication Standards
 - **Server State**: Use `@tanstack/react-query` (`useQuery`, `useMutation`, `queryClient.invalidateQueries`).
 - **HTTP Client**: Use `apiClient` (`/src/shared/api/apiClient.ts`).
 - **Notifications**: Use `message` and `modal` from Ant Design's `<App>` context (`/src/shared/lib/message.ts`).
 
 ---
 
-## 7. Feature-Sliced Design (FSD) Directory Rules
+## 6. Feature-Sliced Design (FSD) Directory Rules
 To maintain a highly decoupled, scalable, and professional codebase, we enforce strict **Feature-Sliced Design (FSD)** principles for directory organization:
 
 ### Layering Architecture:

@@ -9,18 +9,21 @@ import {
   Tooltip,
   Row,
   Col,
+  Switch,
   theme,
 } from 'antd';
-import { ProCard, ProForm, ProFormText } from '@ant-design/pro-components';
+import { ProCard, ProForm, ProFormText, ProFormSwitch } from '@ant-design/pro-components';
 import {
   ApiOutlined,
   CheckCircleOutlined,
   SettingOutlined,
   LinkOutlined,
   KeyOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import { SupabaseInstructionsPanel } from './SupabaseInstructionsPanel.tsx';
 import type { SupabaseConfigData } from '../types/index.ts';
+import { formatDate } from '@/shared/lib/formatters.ts';
 
 const { Text } = Typography;
 
@@ -48,6 +51,7 @@ export const SupabaseCredentialsCard: React.FC<SupabaseCredentialsCardProps> = (
       configForm.setFieldsValue({
         supabaseUrl: config.supabaseUrl,
         supabaseKey: config.supabaseKey,
+        autoFetchFromSupabase: config.autoFetchFromSupabase !== false,
       });
     }
   }, [config, configForm]);
@@ -62,6 +66,12 @@ export const SupabaseCredentialsCard: React.FC<SupabaseCredentialsCardProps> = (
     onTestConnection(values);
   };
 
+  const handleAutoFetchToggle = (checked: boolean) => {
+    onSaveConfig({
+      autoFetchFromSupabase: checked,
+    });
+  };
+
   const showSavedView = !isEditingCredentials && (config?.isKeySet || config?.supabaseUrl);
 
   return (
@@ -74,7 +84,7 @@ export const SupabaseCredentialsCard: React.FC<SupabaseCredentialsCardProps> = (
       }
       headerBordered
       extra={
-        <Space orientation="horizontal" size={8}>
+        <Space direction="horizontal" size={8}>
           <Tooltip
             title={
               isEditingCredentials
@@ -119,22 +129,60 @@ export const SupabaseCredentialsCard: React.FC<SupabaseCredentialsCardProps> = (
         <Row gutter={[24, 24]} align="middle">
           <Col span={24}>
             <Flex vertical gap={16}>
-              <div>
-                <Tag
-                  color="success"
-                  icon={<CheckCircleOutlined />}
-                  style={{
-                    padding: '4px 12px',
-                    fontSize: 13,
-                    borderRadius: token.borderRadius,
-                    border: 'none',
-                    backgroundColor: 'rgba(82, 196, 26, 0.1)',
-                    color: token.colorSuccessText,
-                  }}
-                >
-                  Credentials Stored & Active
-                </Tag>
-              </div>
+              <Flex justify="space-between" align="center" wrap="wrap" gap={8}>
+                <Flex align="center" gap={8}>
+                  <Tag
+                    color="success"
+                    icon={<CheckCircleOutlined />}
+                    style={{
+                      padding: '4px 12px',
+                      fontSize: 13,
+                      borderRadius: token.borderRadius,
+                      border: 'none',
+                      backgroundColor: 'rgba(82, 196, 26, 0.1)',
+                      color: token.colorSuccessText,
+                    }}
+                  >
+                    Credentials Stored & Active
+                  </Tag>
+
+                  {config?.autoFetchFromSupabase !== false ? (
+                    <Tag
+                      color="processing"
+                      icon={<SyncOutlined spin={false} />}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: 12,
+                        borderRadius: token.borderRadius,
+                      }}
+                    >
+                      Auto-Fetch Enabled
+                    </Tag>
+                  ) : (
+                    <Tag
+                      color="default"
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: 12,
+                        borderRadius: token.borderRadius,
+                      }}
+                    >
+                      Auto-Fetch Paused
+                    </Tag>
+                  )}
+                </Flex>
+
+                <Flex align="center" gap={8}>
+                  <Text style={{ fontSize: 13, color: token.colorTextSecondary }}>
+                    Auto-fetch data on account access:
+                  </Text>
+                  <Switch
+                    size="small"
+                    checked={config?.autoFetchFromSupabase !== false}
+                    onChange={handleAutoFetchToggle}
+                  />
+                </Flex>
+              </Flex>
 
               <Flex vertical gap={8}>
                 <Flex align="center" gap={8} wrap="wrap">
@@ -171,6 +219,16 @@ export const SupabaseCredentialsCard: React.FC<SupabaseCredentialsCardProps> = (
                     ••••••••••••••••••••••••••••••••
                   </Text>
                 </Flex>
+
+                {config?.lastFetchedAt && (
+                  <Flex align="center" gap={8} wrap="wrap" style={{ marginTop: 4 }}>
+                    <SyncOutlined style={{ color: token.colorTextSecondary, fontSize: 12 }} />
+                    <Text type="secondary" style={{ minWidth: 90, fontSize: 12 }}>Last Synced:</Text>
+                    <Text style={{ fontSize: 12, color: token.colorTextSecondary }}>
+                      {formatDate(config.lastFetchedAt)}
+                    </Text>
+                  </Flex>
+                )}
               </Flex>
             </Flex>
           </Col>
@@ -185,8 +243,9 @@ export const SupabaseCredentialsCard: React.FC<SupabaseCredentialsCardProps> = (
               form={configForm}
               onFinish={handleFinish}
               disabled={isConfigLoading}
+              initialValues={{ autoFetchFromSupabase: true }}
               submitter={{
-                searchConfig: { submitText: 'Save Supabase Credentials' },
+                searchConfig: { submitText: 'Save & Auto-Fetch from Supabase' },
                 render: (_, dom) => (
                   <Flex justify="flex-start" gap={8} style={{ marginTop: 8 }}>
                     {dom[1]}
@@ -214,6 +273,11 @@ export const SupabaseCredentialsCard: React.FC<SupabaseCredentialsCardProps> = (
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 rules={[{ required: true, message: 'Enter your API Key' }]}
                 extra="Stored securely server-side"
+              />
+              <ProFormSwitch
+                name="autoFetchFromSupabase"
+                label="Auto-fetch data from Supabase"
+                extra="Automatically pull prompts, categories, and tags from Supabase on account login & startup"
               />
             </ProForm>
           </Col>

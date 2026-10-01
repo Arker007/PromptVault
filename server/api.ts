@@ -1,9 +1,10 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import multer from 'multer';
-import { getDb, saveDb } from './db.js';
-import { Database } from 'sql.js';
+import { getDb, saveDb } from './db.ts';
+import type { Database } from 'sql.js';
 import {
   getEffectiveSupabaseConfig,
   createSupabaseClient,
@@ -11,8 +12,16 @@ import {
   testSupabaseDatabase,
   getSupabaseSchemaSql,
   ensureBucketExists,
-} from './supabase.js';
-import { syncUserDataToSupabase, pullUserDataFromSupabase } from './supabase-db.js';
+} from './supabase.ts';
+import {
+  syncUserDataToSupabase,
+  pullUserDataFromSupabase,
+  deletePromptFromSupabase,
+  deleteCategoryFromSupabase,
+  deleteCollectionFromSupabase,
+  deleteTagFromSupabase,
+  deduplicatePromptsForUser,
+} from './supabase-db.ts';
 
 const upload = multer({
   limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
@@ -118,7 +127,7 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
   }
 }
 
-export const apiRouter = Router();
+export const apiRouter = express.Router();
 
 // ================= AUTH ROUTES =================
 apiRouter.post('/auth/login', async (req: Request, res: Response) => {
@@ -341,62 +350,58 @@ apiRouter.post('/auth/logout', (_req: Request, res: Response) => {
   return res.json({ success: true, message: 'Logged out successfully' });
 });
 
+const lastPullTimeByUser: Record<string, number> = {};
+
 apiRouter.get('/auth/me', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const db = await getDb();
-    const config = getEffectiveSupabaseConfig();
+    let localUser = queryOne<{ id: string; email: string; display_name: string; preferences: string; created_at: string }>(
+      db,
+      'SELECT id, email, display_name, preferences, created_at FROM users WHERE id = ?',
+      [req.userId!]
+    );
+
+    const config = getEffectiveSupabaseConfig(localUser?.preferences);
     const isSupabase = !!(config.supabaseUrl && config.supabaseKey);
-    let user: any = null;
 
-    if (isSupabase) {
-      const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
-      if (client) {
-        const { data: supabaseUser } = await client
-          .from('users')
-          .select('*')
-          .eq('id', req.userId!)
-          .maybeSingle();
+    const nowTime = Date.now();
+    const lastPull = lastPullTimeByUser[req.userId!] || 0;
+    const shouldAutoPull = isSupabase && config.autoFetchFromSupabase !== false && (nowTime - lastPull > 30000);
 
-        if (supabaseUser) {
-          user = {
-            id: supabaseUser.id,
-            email: supabaseUser.email,
-            display_name: supabaseUser.display_name,
-            preferences: typeof supabaseUser.preferences === 'string'
-              ? supabaseUser.preferences
-              : JSON.stringify(supabaseUser.preferences || {}),
-            created_at: supabaseUser.created_at,
-          };
-        }
+    if (shouldAutoPull) {
+      lastPullTimeByUser[req.userId!] = nowTime;
+      // Auto-fetch latest user data from Supabase API
+      try {
+        await pullUserDataFromSupabase(req.userId!, queryOne, runQuery, db, localUser?.preferences);
+        // Refresh local user record after pull
+        localUser = queryOne<{ id: string; email: string; display_name: string; preferences: string; created_at: string }>(
+          db,
+          'SELECT id, email, display_name, preferences, created_at FROM users WHERE id = ?',
+          [req.userId!]
+        );
+      } catch (err: any) {
+        console.warn('Notice: Background auto-fetch from Supabase on auth/me:', err.message);
       }
     }
 
-    if (!user) {
-      user = queryOne<{ id: string; email: string; display_name: string; preferences: string; created_at: string }>(
-        db,
-        'SELECT id, email, display_name, preferences, created_at FROM users WHERE id = ?',
-        [req.userId!]
-      );
-    }
-
-    if (!user) {
+    if (!localUser) {
       return res.status(404).json({ code: 'NOT_FOUND', message: 'User not found' });
     }
 
     let prefs = {};
     try {
-      prefs = JSON.parse(user.preferences || '{}');
+      prefs = JSON.parse(localUser.preferences || '{}');
     } catch {
       prefs = {};
     }
 
     return res.json({
       user: {
-        id: user.id,
-        email: user.email,
-        displayName: user.display_name,
+        id: localUser.id,
+        email: localUser.email,
+        displayName: localUser.display_name,
         preferences: prefs,
-        createdAt: user.created_at,
+        createdAt: localUser.created_at,
       },
     });
   } catch (err: any) {
@@ -984,7 +989,15 @@ apiRouter.delete('/prompts/:id', requireAuth, async (req: AuthRequest, res: Resp
     runQuery(db, 'DELETE FROM prompt_versions WHERE prompt_id = ?', [promptId]);
     runQuery(db, 'DELETE FROM prompts WHERE id = ? AND user_id = ?', [promptId, userId]);
 
-    syncUserDataToSupabase(userId, queryOne, queryAll, db);
+    // Explicitly delete from Supabase if configured
+    const userRow = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(userRow?.preferences);
+    if (config.supabaseUrl && config.supabaseKey) {
+      const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+      if (client) {
+        deletePromptFromSupabase(client, userId, promptId).catch((e: any) => console.warn('Supabase prompt deletion notice:', e.message));
+      }
+    }
 
     return res.json({ success: true, message: 'Prompt deleted permanently' });
   } catch (err: any) {
@@ -1267,6 +1280,19 @@ apiRouter.post('/prompts/bulk', requireAuth, async (req: AuthRequest, res: Respo
       runQuery(db, `DELETE FROM prompt_tags WHERE prompt_id IN (${inClause})`, ids);
       runQuery(db, `DELETE FROM prompt_versions WHERE prompt_id IN (${inClause})`, ids);
       runQuery(db, `DELETE FROM prompts WHERE id IN (${inClause}) AND user_id = ?`, [...ids, userId]);
+
+      const userRow = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+      const config = getEffectiveSupabaseConfig(userRow?.preferences);
+      if (config.supabaseUrl && config.supabaseKey) {
+        const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+        if (client) {
+          try {
+            await client.from('prompts').delete().in('id', ids).eq('user_id', userId);
+          } catch (e: any) {
+            console.warn('Supabase bulk prompt deletion notice:', e.message);
+          }
+        }
+      }
       return res.json({ success: true, count: ids.length, action: 'delete' });
     }
 
@@ -1459,7 +1485,14 @@ apiRouter.delete('/categories/:id', requireAuth, async (req: AuthRequest, res: R
 
     runQuery(db, 'DELETE FROM categories WHERE id = ? AND user_id = ?', [catId, userId]);
 
-    syncUserDataToSupabase(userId, queryOne, queryAll, db);
+    const userRow = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(userRow?.preferences);
+    if (config.supabaseUrl && config.supabaseKey) {
+      const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+      if (client) {
+        deleteCategoryFromSupabase(client, userId, catId).catch((e: any) => console.warn('Supabase category deletion notice:', e.message));
+      }
+    }
 
     return res.json({ success: true, message: 'Category deleted' });
   } catch (err: any) {
@@ -1571,6 +1604,15 @@ apiRouter.delete('/collections/:id', requireAuth, async (req: AuthRequest, res: 
     runQuery(db, 'UPDATE prompts SET collection_id = NULL WHERE collection_id = ? AND user_id = ?', [colId, userId]);
     runQuery(db, 'DELETE FROM collections WHERE id = ? AND user_id = ?', [colId, userId]);
 
+    const userRow = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(userRow?.preferences);
+    if (config.supabaseUrl && config.supabaseKey) {
+      const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+      if (client) {
+        deleteCollectionFromSupabase(client, userId, colId).catch((e: any) => console.warn('Supabase collection deletion notice:', e.message));
+      }
+    }
+
     return res.json({ success: true, message: 'Collection deleted' });
   } catch (err: any) {
     return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
@@ -1681,6 +1723,15 @@ apiRouter.delete('/tags/:id', requireAuth, async (req: AuthRequest, res: Respons
 
     runQuery(db, 'DELETE FROM prompt_tags WHERE tag_id = ?', [tagId]);
     runQuery(db, 'DELETE FROM tags WHERE id = ? AND user_id = ?', [tagId, userId]);
+
+    const userRow = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(userRow?.preferences);
+    if (config.supabaseUrl && config.supabaseKey) {
+      const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+      if (client) {
+        deleteTagFromSupabase(client, userId, tagId).catch((e: any) => console.warn('Supabase tag deletion notice:', e.message));
+      }
+    }
 
     return res.json({ success: true, message: 'Tag deleted' });
   } catch (err: any) {
@@ -1888,41 +1939,83 @@ apiRouter.post('/import', requireAuth, async (req: AuthRequest, res: Response) =
 
     // Prompts
     for (const p of data.prompts) {
-      const newPromptId = `prm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const targetCatId = p.category_id ? categoryMap[p.category_id] || null : null;
-      const targetColId = p.collection_id ? collectionMap[p.collection_id] || null : null;
+      const targetCatId = p.category_id ? (categoryMap[p.category_id] || p.category_id) : null;
+      const targetColId = p.collection_id ? (collectionMap[p.collection_id] || p.collection_id) : null;
+      const pTitle = (p.title || '').trim();
+      const pContent = (p.content || '').trim();
+      const pDesc = p.description ? p.description.trim() : null;
 
-      runQuery(
-        db,
-        `INSERT INTO prompts (id, user_id, category_id, collection_id, title, description, content, is_favorite, is_archived, copy_count, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          newPromptId,
-          userId,
-          targetCatId,
-          targetColId,
-          p.title,
-          p.description || null,
-          p.content,
-          p.is_favorite ? 1 : 0,
-          p.is_archived ? 1 : 0,
-          p.copy_count || 0,
-          p.created_at || now,
-          p.updated_at || now,
-        ]
-      );
+      // Check if prompt with same ID already exists for this user
+      let targetPromptId = p.id;
+      let existingPrompt = p.id
+        ? queryOne<{ id: string }>(db, 'SELECT id FROM prompts WHERE id = ? AND user_id = ?', [p.id, userId])
+        : null;
 
-      // Version
-      runQuery(
-        db,
-        `INSERT INTO prompt_versions (id, prompt_id, version_number, title, description, content, created_at)
-         VALUES (?, ?, 1, ?, ?, ?, ?)`,
-        [`ver_${newPromptId}_1`, newPromptId, p.title, p.description || null, p.content, now]
-      );
+      // Check if prompt with identical title and content already exists for this user
+      if (!existingPrompt) {
+        existingPrompt = queryOne<{ id: string }>(
+          db,
+          'SELECT id FROM prompts WHERE user_id = ? AND LOWER(TRIM(title)) = LOWER(TRIM(?)) AND TRIM(content) = TRIM(?)',
+          [userId, pTitle, pContent]
+        );
+      }
+
+      if (existingPrompt) {
+        targetPromptId = existingPrompt.id;
+        runQuery(
+          db,
+          `UPDATE prompts 
+           SET title = ?, description = ?, content = ?, category_id = COALESCE(?, category_id), collection_id = COALESCE(?, collection_id),
+               is_favorite = ?, is_archived = ?, updated_at = ?
+           WHERE id = ? AND user_id = ?`,
+          [
+            pTitle,
+            pDesc,
+            pContent,
+            targetCatId,
+            targetColId,
+            p.is_favorite ? 1 : 0,
+            p.is_archived ? 1 : 0,
+            p.updated_at || now,
+            targetPromptId,
+            userId,
+          ]
+        );
+      } else {
+        targetPromptId = p.id || `prm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        runQuery(
+          db,
+          `INSERT INTO prompts (id, user_id, category_id, collection_id, title, description, content, is_favorite, is_archived, copy_count, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            targetPromptId,
+            userId,
+            targetCatId,
+            targetColId,
+            pTitle,
+            pDesc,
+            pContent,
+            p.is_favorite ? 1 : 0,
+            p.is_archived ? 1 : 0,
+            p.copy_count || 0,
+            p.created_at || now,
+            p.updated_at || now,
+          ]
+        );
+
+        // Version
+        runQuery(
+          db,
+          `INSERT OR IGNORE INTO prompt_versions (id, prompt_id, version_number, title, description, content, created_at)
+           VALUES (?, ?, 1, ?, ?, ?, ?)`,
+          [`ver_${targetPromptId}_1`, targetPromptId, pTitle, pDesc, pContent, now]
+        );
+      }
 
       importedPrompts++;
     }
 
+    const { duplicatesRemoved } = await deduplicatePromptsForUser(userId, queryOne, queryAll, runQuery, db);
     syncUserDataToSupabase(userId, queryOne, queryAll, db);
 
     return res.json({
@@ -1932,6 +2025,7 @@ apiRouter.post('/import', requireAuth, async (req: AuthRequest, res: Response) =
         categories: importedCategories,
         collections: importedCollections,
         tags: importedTags,
+        duplicatesRemoved,
       },
     });
   } catch (err: any) {
@@ -1963,6 +2057,8 @@ apiRouter.get('/supabase/config', requireAuth, async (req: AuthRequest, res: Res
       assetBucket: config.assetBucket,
       autoBackupEnabled: config.autoBackupEnabled,
       autoBackupFrequency: config.autoBackupFrequency,
+      autoFetchFromSupabase: config.autoFetchFromSupabase !== false,
+      lastFetchedAt: config.lastFetchedAt || null,
     });
   } catch (err: any) {
     return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
@@ -1972,7 +2068,15 @@ apiRouter.get('/supabase/config', requireAuth, async (req: AuthRequest, res: Res
 // 2. Save Supabase Configuration
 apiRouter.post('/supabase/config', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
-    const { supabaseUrl, supabaseKey, backupBucket, assetBucket, autoBackupEnabled, autoBackupFrequency } = req.body;
+    const {
+      supabaseUrl,
+      supabaseKey,
+      backupBucket,
+      assetBucket,
+      autoBackupEnabled,
+      autoBackupFrequency,
+      autoFetchFromSupabase,
+    } = req.body;
     const db = await getDb();
     const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [req.userId]);
 
@@ -1984,26 +2088,49 @@ apiRouter.post('/supabase/config', requireAuth, async (req: AuthRequest, res: Re
     }
 
     const currentSupabase = prefs.supabase || {};
+    const updatedUrl = supabaseUrl !== undefined ? supabaseUrl.trim() : currentSupabase.supabaseUrl;
+    const updatedKey =
+      supabaseKey && !supabaseKey.includes('•••') && !supabaseKey.includes('...')
+        ? supabaseKey.trim()
+        : currentSupabase.supabaseKey;
+
+    const now = new Date().toISOString();
     prefs.supabase = {
       ...currentSupabase,
-      supabaseUrl: supabaseUrl !== undefined ? supabaseUrl.trim() : currentSupabase.supabaseUrl,
-      supabaseKey: supabaseKey && !supabaseKey.includes('•••') && !supabaseKey.includes('...') ? supabaseKey.trim() : currentSupabase.supabaseKey,
+      supabaseUrl: updatedUrl,
+      supabaseKey: updatedKey,
       backupBucket: backupBucket ? backupBucket.trim() : (currentSupabase.backupBucket || 'promptvault-backups'),
       assetBucket: assetBucket ? assetBucket.trim() : (currentSupabase.assetBucket || 'promptvault-assets'),
-      autoBackupEnabled: autoBackupEnabled !== undefined ? Boolean(autoBackupEnabled) : Boolean(currentSupabase.autoBackupEnabled),
+      autoBackupEnabled:
+        autoBackupEnabled !== undefined ? Boolean(autoBackupEnabled) : Boolean(currentSupabase.autoBackupEnabled),
       autoBackupFrequency: autoBackupFrequency || currentSupabase.autoBackupFrequency || 'daily',
+      autoFetchFromSupabase:
+        autoFetchFromSupabase !== undefined ? Boolean(autoFetchFromSupabase) : (currentSupabase.autoFetchFromSupabase !== false),
+      lastFetchedAt: currentSupabase.lastFetchedAt || now,
     };
 
     runQuery(db, 'UPDATE users SET preferences = ?, updated_at = ? WHERE id = ?', [
       JSON.stringify(prefs),
-      new Date().toISOString(),
+      now,
       req.userId,
     ]);
 
-    // Trigger immediate auto-sync to Supabase Database
-    syncUserDataToSupabase(req.userId!, queryOne, queryAll, db);
+    // If Supabase credentials exist, automatically auto-fetch data from Supabase API and sync!
+    let pullResult: any = null;
+    if (updatedUrl && updatedKey) {
+      pullResult = await pullUserDataFromSupabase(req.userId!, queryOne, runQuery, db, JSON.stringify(prefs));
+      syncUserDataToSupabase(req.userId!, queryOne, queryAll, db, JSON.stringify(prefs));
+    }
 
-    return res.json({ success: true, message: 'Supabase configuration saved successfully' });
+    const successMessage = pullResult?.success && pullResult.fetchedCounts
+      ? `Supabase configuration saved! Auto-fetched ${pullResult.fetchedCounts.prompts} prompts and library taxonomy from Supabase API.`
+      : 'Supabase configuration saved successfully';
+
+    return res.json({
+      success: true,
+      message: successMessage,
+      pulled: pullResult,
+    });
   } catch (err: any) {
     return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
   }
@@ -2310,52 +2437,103 @@ apiRouter.post('/supabase/backups/restore', requireAuth, async (req: AuthRequest
       }
     }
 
-    // Restore Prompts
+    // Restore Prompts with in-place deduplication
     for (const p of data.prompts) {
-      const newPromptId = `prm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const targetCatId = p.category_id ? categoryMap[p.category_id] || null : null;
-      const targetColId = p.collection_id ? collectionMap[p.collection_id] || null : null;
+      const targetCatId = p.category_id ? (categoryMap[p.category_id] || p.category_id) : null;
+      const targetColId = p.collection_id ? (collectionMap[p.collection_id] || p.collection_id) : null;
+      const pTitle = (p.title || '').trim();
+      const pContent = (p.content || '').trim();
+      const pDesc = p.description ? p.description.trim() : null;
 
-      runQuery(
-        db,
-        `INSERT INTO prompts (id, user_id, category_id, collection_id, title, description, content, is_favorite, is_pinned, is_archived, copy_count, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          newPromptId,
-          userId,
-          targetCatId,
-          targetColId,
-          p.title,
-          p.description || null,
-          p.content,
-          p.is_favorite ? 1 : 0,
-          p.is_pinned ? 1 : 0,
-          p.is_archived ? 1 : 0,
-          p.copy_count || 0,
-          p.created_at || now,
-          p.updated_at || now,
-        ]
-      );
+      // Check if prompt with same ID already exists for this user
+      let targetPromptId = p.id;
+      let existingPrompt = p.id
+        ? queryOne<{ id: string }>(db, 'SELECT id FROM prompts WHERE id = ? AND user_id = ?', [p.id, userId])
+        : null;
 
-      // Restore Versions
-      runQuery(
-        db,
-        `INSERT INTO prompt_versions (id, prompt_id, version_number, title, description, content, created_at)
-         VALUES (?, ?, 1, ?, ?, ?, ?)`,
-        [`ver_${newPromptId}_1`, newPromptId, p.title, p.description || null, p.content, now]
-      );
+      // Check if prompt with identical title and content already exists for this user
+      if (!existingPrompt) {
+        existingPrompt = queryOne<{ id: string }>(
+          db,
+          'SELECT id FROM prompts WHERE user_id = ? AND LOWER(TRIM(title)) = LOWER(TRIM(?)) AND TRIM(content) = TRIM(?)',
+          [userId, pTitle, pContent]
+        );
+      }
+
+      if (existingPrompt) {
+        targetPromptId = existingPrompt.id;
+        runQuery(
+          db,
+          `UPDATE prompts 
+           SET title = ?, description = ?, content = ?, category_id = COALESCE(?, category_id), collection_id = COALESCE(?, collection_id),
+               is_favorite = ?, is_pinned = ?, is_archived = ?, updated_at = ?
+           WHERE id = ? AND user_id = ?`,
+          [
+            pTitle,
+            pDesc,
+            pContent,
+            targetCatId,
+            targetColId,
+            p.is_favorite ? 1 : 0,
+            p.is_pinned ? 1 : 0,
+            p.is_archived ? 1 : 0,
+            p.updated_at || now,
+            targetPromptId,
+            userId,
+          ]
+        );
+      } else {
+        targetPromptId = p.id || `prm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        runQuery(
+          db,
+          `INSERT INTO prompts (id, user_id, category_id, collection_id, title, description, content, is_favorite, is_pinned, is_archived, copy_count, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            targetPromptId,
+            userId,
+            targetCatId,
+            targetColId,
+            pTitle,
+            pDesc,
+            pContent,
+            p.is_favorite ? 1 : 0,
+            p.is_pinned ? 1 : 0,
+            p.is_archived ? 1 : 0,
+            p.copy_count || 0,
+            p.created_at || now,
+            p.updated_at || now,
+          ]
+        );
+
+        // Restore Versions
+        runQuery(
+          db,
+          `INSERT OR IGNORE INTO prompt_versions (id, prompt_id, version_number, title, description, content, created_at)
+           VALUES (?, ?, 1, ?, ?, ?, ?)`,
+          [`ver_${targetPromptId}_1`, targetPromptId, pTitle, pDesc, pContent, now]
+        );
+      }
 
       restoredPrompts++;
     }
 
+    // Clean duplicate prompts
+    const { duplicatesRemoved } = await deduplicatePromptsForUser(userId, queryOne, queryAll, runQuery, db);
+    syncUserDataToSupabase(userId, queryOne, queryAll, db);
+
+    const message = duplicatesRemoved > 0
+      ? `Successfully restored backup and cleaned ${duplicatesRemoved} duplicate prompt(s).`
+      : `Successfully restored ${restoredPrompts} prompts, ${restoredCategories} categories, and ${restoredCollections} collections from Supabase.`;
+
     return res.json({
       success: true,
-      message: `Successfully restored ${restoredPrompts} prompts, ${restoredCategories} categories, and ${restoredCollections} collections from Supabase.`,
+      message,
       restored: {
         prompts: restoredPrompts,
         categories: restoredCategories,
         collections: restoredCollections,
         tags: restoredTags,
+        duplicatesRemoved,
       },
     });
   } catch (err: any) {
@@ -2713,5 +2891,72 @@ apiRouter.get('/supabase/db/stats', requireAuth, async (req: AuthRequest, res: R
     });
   } catch (err: any) {
     return res.json({ isConfigured: false, error: err.message });
+  }
+});
+
+// 16. Deduplicate Prompts across SQLite and Supabase
+apiRouter.post('/prompts/deduplicate', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const db = await getDb();
+    const result = await deduplicatePromptsForUser(userId, queryOne, queryAll, runQuery, db);
+    syncUserDataToSupabase(userId, queryOne, queryAll, db);
+
+    return res.json({
+      success: true,
+      duplicatesRemoved: result.duplicatesRemoved,
+      groupsCleaned: result.groupsCleaned,
+      message:
+        result.duplicatesRemoved > 0
+          ? `Successfully identified and merged ${result.duplicatesRemoved} duplicate prompt(s) across your account & Supabase.`
+          : 'Your prompt library has no duplicate prompts.',
+    });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
+  }
+});
+apiRouter.post('/supabase/db/pull-from-remote', requireAuth, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const db = await getDb();
+    const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+    const config = getEffectiveSupabaseConfig(user?.preferences);
+
+    if (!config.supabaseUrl || !config.supabaseKey) {
+      return res.status(400).json({
+        code: 'CONFIG_MISSING',
+        message: 'Supabase credentials are not configured in your account settings.',
+      });
+    }
+
+    const pullResult = await pullUserDataFromSupabase(userId, queryOne, runQuery, db, user?.preferences);
+
+    // Update lastFetchedAt in user preferences
+    const now = new Date().toISOString();
+    let prefs: any = {};
+    if (user?.preferences) {
+      try {
+        prefs = JSON.parse(user.preferences);
+      } catch {}
+    }
+    if (!prefs.supabase) prefs.supabase = {};
+    prefs.supabase.lastFetchedAt = now;
+    runQuery(db, 'UPDATE users SET preferences = ? WHERE id = ?', [JSON.stringify(prefs), userId]);
+
+    if (!pullResult.success) {
+      return res.status(500).json({
+        code: 'FETCH_FAILED',
+        message: pullResult.message || 'Failed to auto-fetch data from Supabase API.',
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: pullResult.message,
+      counts: pullResult.fetchedCounts,
+      lastFetchedAt: now,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });
   }
 });

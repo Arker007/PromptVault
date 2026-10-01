@@ -1,4 +1,5 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface SupabaseConfig {
   supabaseUrl?: string;
@@ -7,6 +8,8 @@ export interface SupabaseConfig {
   assetBucket?: string;
   autoBackupEnabled?: boolean;
   autoBackupFrequency?: 'daily' | 'weekly';
+  autoFetchFromSupabase?: boolean;
+  lastFetchedAt?: string;
 }
 
 export function getEffectiveSupabaseConfig(userPreferences?: string | null): SupabaseConfig {
@@ -26,6 +29,8 @@ export function getEffectiveSupabaseConfig(userPreferences?: string | null): Sup
     assetBucket: supabasePrefs.assetBucket || 'promptvault-assets',
     autoBackupEnabled: Boolean(supabasePrefs.autoBackupEnabled),
     autoBackupFrequency: supabasePrefs.autoBackupFrequency || 'daily',
+    autoFetchFromSupabase: supabasePrefs.autoFetchFromSupabase !== undefined ? Boolean(supabasePrefs.autoFetchFromSupabase) : true,
+    lastFetchedAt: supabasePrefs.lastFetchedAt || undefined,
   };
 }
 

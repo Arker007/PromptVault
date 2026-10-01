@@ -24,6 +24,11 @@ async function startServer() {
   // Mount API router
   app.use('/api', apiRouter);
 
+  // Return JSON 404 for unmatched /api routes
+  app.all('/api/*', (_req, res) => {
+    res.status(404).json({ code: 'NOT_FOUND', message: 'API endpoint not found' });
+  });
+
   // Vite middleware in dev mode
   if (!isProd) {
     const { createServer } = await import('vite');

@@ -28,7 +28,7 @@ export const SupabaseSchemaSetupCard: React.FC<SupabaseSchemaSetupCardProps> = (
       title="Database Setup Required: Relational Schema & Row-Level Security"
       headerBordered
       extra={
-        <Space orientation="horizontal" size={8}>
+        <Space direction="horizontal" size={8}>
           <Tooltip title="Verify required tables exist in your Supabase project">
             <Button
               icon={<ApiOutlined />}
@@ -56,12 +56,12 @@ export const SupabaseSchemaSetupCard: React.FC<SupabaseSchemaSetupCardProps> = (
         type="warning"
         showIcon
         style={{ marginBottom: 12 }}
-        title="Setup Guidance: Provision PostgreSQL Database"
+        message="Setup Guidance: Provision PostgreSQL Database"
         description="Connect your Supabase project credentials above, then run the SQL script in your Supabase SQL Editor to provision tables (prompts, categories, collections, tags, prompt_versions) with RLS."
       />
 
       <Flex justify="space-between" align="center" wrap="wrap" gap={12}>
-        <Space orientation="horizontal" size={8}>
+        <Space direction="horizontal" size={8}>
           <Tag color="blue">7 Relational Tables</Tag>
           <Tag color="green">Row-Level Security (RLS)</Tag>
           <Tag color="purple">Performance Indexes</Tag>

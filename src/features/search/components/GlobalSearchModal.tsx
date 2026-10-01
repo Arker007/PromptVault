@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Input, Typography, Flex, Space, Tag, Empty, Spin, theme, Listy } from 'antd';
+import { Modal, Input, Typography, Flex, Space, Tag, Empty, Spin, theme, List } from 'antd';
 import {
   SearchOutlined,
   FileTextOutlined,
@@ -146,15 +146,15 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
               <Text strong type="secondary" style={{ fontSize: 11, letterSpacing: '0.05em' }}>
                 PROMPTS ({results.prompts.length})
               </Text>
-              <Listy
-                virtual={false}
-                items={results.prompts}
+              <List
+                dataSource={results.prompts}
                 rowKey="id"
+                split={false}
                 style={{ marginTop: 4 }}
-                itemRender={(p) => (
+                renderItem={(p) => (
                   <SearchResultRow onClick={() => onSelectPrompt(p.id)} padding="8px 12px">
                     <Flex justify="space-between" align="center">
-                      <Space orientation="horizontal" size={8}>
+                      <Space direction="horizontal" size={8}>
                         <FileTextOutlined style={{ color: token.colorPrimary }} />
                         <Text strong style={{ fontSize: 13, color: token.colorText }}>
                           {p.title}
@@ -202,14 +202,14 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
               <Text strong type="secondary" style={{ fontSize: 11, letterSpacing: '0.05em' }}>
                 CATEGORIES ({results.categories.length})
               </Text>
-              <Listy
-                virtual={false}
-                items={results.categories}
+              <List
+                dataSource={results.categories}
                 rowKey="id"
+                split={false}
                 style={{ marginTop: 4 }}
-                itemRender={(c) => (
+                renderItem={(c) => (
                   <SearchResultRow onClick={() => onSelectCategory(c.id)} padding="6px 12px">
-                    <Space orientation="horizontal" size={8}>
+                    <Space direction="horizontal" size={8}>
                       <FolderOutlined style={{ color: token.colorTextSecondary }} />
                       <Text style={{ fontSize: 13, color: token.colorText }}>{c.name}</Text>
                     </Space>
@@ -225,14 +225,14 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
               <Text strong type="secondary" style={{ fontSize: 11, letterSpacing: '0.05em' }}>
                 COLLECTIONS ({results.collections.length})
               </Text>
-              <Listy
-                virtual={false}
-                items={results.collections}
+              <List
+                dataSource={results.collections}
                 rowKey="id"
+                split={false}
                 style={{ marginTop: 4 }}
-                itemRender={(col) => (
+                renderItem={(col) => (
                   <SearchResultRow onClick={() => onSelectCollection(col.id)} padding="6px 12px">
-                    <Space orientation="horizontal" size={8}>
+                    <Space direction="horizontal" size={8}>
                       <AppstoreOutlined style={{ color: token.colorTextSecondary }} />
                       <Text style={{ fontSize: 13, color: token.colorText }}>{col.name}</Text>
                     </Space>

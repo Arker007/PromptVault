@@ -70,13 +70,13 @@ export const AdvancedFiltersDrawer: React.FC<AdvancedFiltersDrawerProps> = ({
     <Drawer
       title="Advanced Filters"
       placement="right"
-      size={400}
+      width={400}
       onClose={onClose}
       open={open}
       footer={
         <Flex justify="space-between" align="center">
           <Button onClick={handleReset}>Reset All</Button>
-          <Space orientation="horizontal" size={8}>
+          <Space direction="horizontal" size={8}>
             <Button onClick={onClose}>Cancel</Button>
             <Button type="primary" onClick={() => form.submit()}>
               Apply Filters

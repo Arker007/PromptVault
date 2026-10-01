@@ -11,7 +11,7 @@ export const supabaseApi = {
     return apiClient.get('/api/supabase/config');
   },
 
-  updateConfig: async (data: Partial<SupabaseConfigData>): Promise<{ message: string }> => {
+  updateConfig: async (data: Partial<SupabaseConfigData>): Promise<{ message: string; pulled?: any }> => {
     return apiClient.post('/api/supabase/config', data);
   },
 
@@ -33,6 +33,14 @@ export const supabaseApi = {
 
   pushLocalToRemote: async (): Promise<SyncResult> => {
     return apiClient.post('/api/supabase/db/migrate-from-sqlite', {});
+  },
+
+  pullRemoteToLocal: async (): Promise<SyncResult> => {
+    return apiClient.post('/api/supabase/db/pull-from-remote', {});
+  },
+
+  deduplicate: async (): Promise<{ success: boolean; duplicatesRemoved: number; groupsCleaned: number; message: string }> => {
+    return apiClient.post('/api/prompts/deduplicate', {});
   },
 
   getBackups: async (): Promise<{ backups: BackupItem[] }> => {

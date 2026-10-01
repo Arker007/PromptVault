@@ -52,7 +52,7 @@ export const PromptContent: React.FC<PromptContentProps> = ({ id, content }) => 
         <span style={{ fontSize: 12, fontWeight: 500, color: token.colorTextSecondary }}>
           PROMPT TEMPLATE
         </span>
-        <Space orientation="horizontal" size={8}>
+        <Space direction="horizontal" size={8}>
           <Button
             size="small"
             icon={<SelectOutlined />}

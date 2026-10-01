@@ -45,26 +45,28 @@ export const SettingsPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<string>(() => {
-    const searchParams = new URLSearchParams(window.location.search);
+  const getResolvedTab = (): string => {
+    const searchParams = new URLSearchParams(location.search);
     const tabParam = searchParams.get('tab');
     if (tabParam && ['profile', 'security', 'preferences', 'supabase', 'backup'].includes(tabParam)) {
       return tabParam;
     }
+    const pathPart = location.pathname.split('/')[2];
+    if (pathPart && ['profile', 'security', 'preferences', 'supabase', 'backup'].includes(pathPart)) {
+      return pathPart;
+    }
     return 'profile';
-  });
+  };
+
+  const [activeTab, setActiveTab] = useState<string>(getResolvedTab);
 
   useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    const tabParam = searchParams.get('tab');
-    if (tabParam && ['profile', 'security', 'preferences', 'supabase', 'backup'].includes(tabParam)) {
-      setActiveTab(tabParam);
-    }
-  }, [location.search]);
+    setActiveTab(getResolvedTab());
+  }, [location.pathname, location.search]);
 
   const handleTabChange = (key: string) => {
     setActiveTab(key);
-    navigate(`/settings/profile?tab=${key}`, { replace: true });
+    navigate(`/settings/${key}`, { replace: true });
   };
 
   // Profile update

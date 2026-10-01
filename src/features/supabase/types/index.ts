@@ -6,6 +6,8 @@ export interface SupabaseConfigData {
   assetBucket: string;
   autoBackupEnabled: boolean;
   autoBackupFrequency: 'daily' | 'weekly';
+  autoFetchFromSupabase?: boolean;
+  lastFetchedAt?: string;
 }
 
 export interface BackupItem {
@@ -43,5 +45,13 @@ export interface SupabaseDbStats {
 
 export interface SyncResult {
   message: string;
-  counts?: Record<string, number>;
+  counts?: {
+    prompts?: number;
+    categories?: number;
+    collections?: number;
+    tags?: number;
+    versions?: number;
+    [key: string]: number | undefined;
+  };
+  lastFetchedAt?: string;
 }

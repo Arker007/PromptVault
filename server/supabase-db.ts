@@ -1,5 +1,5 @@
-import { SupabaseClient } from '@supabase/supabase-js';
-import { createSupabaseClient, getEffectiveSupabaseConfig } from './supabase.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { createSupabaseClient, getEffectiveSupabaseConfig } from './supabase.ts';
 
 export interface SupabasePrompt {
   id: string;
@@ -54,6 +54,19 @@ export interface SupabasePromptVersion {
   description?: string | null;
   content: string;
   created_at: string;
+}
+
+export interface PullUserDataResult {
+  success: boolean;
+  message: string;
+  fetchedCounts?: {
+    prompts: number;
+    categories: number;
+    collections: number;
+    tags: number;
+    versions: number;
+  };
+  duplicatesRemoved?: number;
 }
 
 /**
@@ -335,11 +348,16 @@ export async function syncUserDataToSupabase(
   userId: string,
   queryOne: (db: any, sql: string, params?: any[]) => any,
   queryAll: (db: any, sql: string, params?: any[]) => any[],
-  db: any
+  db: any,
+  userPreferences?: string | null
 ) {
   try {
-    const userRow = queryOne(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
-    const config = getEffectiveSupabaseConfig(userRow?.preferences);
+    let prefs = userPreferences;
+    if (prefs === undefined) {
+      const userRow = queryOne(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+      prefs = userRow?.preferences;
+    }
+    const config = getEffectiveSupabaseConfig(prefs);
     if (!config.supabaseUrl || !config.supabaseKey) return;
 
     const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
@@ -390,59 +408,192 @@ export async function syncUserDataToSupabase(
   }
 }
 
+/**
+ * Identifies and consolidates duplicate prompts (same title and content)
+ * keeping the primary canonical prompt, re-linking tags and versions, and removing redundancies.
+ */
+export async function deduplicatePromptsForUser(
+  userId: string,
+  queryOne: (db: any, sql: string, params?: any[]) => any,
+  queryAll: (db: any, sql: string, params?: any[]) => any[],
+  runQuery: (db: any, sql: string, params?: any[]) => void,
+  db: any,
+  userPreferences?: string | null
+): Promise<{ duplicatesRemoved: number; groupsCleaned: number }> {
+  try {
+    const allPrompts = queryAll(
+      db,
+      'SELECT id, title, content, copy_count, created_at, updated_at FROM prompts WHERE user_id = ? ORDER BY updated_at DESC',
+      [userId]
+    );
+
+    const map = new Map<string, any[]>();
+    for (const p of allPrompts) {
+      const key = `${(p.title || '').trim().toLowerCase()}|||${(p.content || '').trim()}`;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(p);
+    }
+
+    let duplicatesRemoved = 0;
+    let groupsCleaned = 0;
+    const idsToDelete: string[] = [];
+
+    for (const [_key, group] of map.entries()) {
+      if (group.length > 1) {
+        groupsCleaned++;
+        // Sort: highest copy count first, then most recently updated
+        group.sort((a, b) => {
+          if ((b.copy_count || 0) !== (a.copy_count || 0)) {
+            return (b.copy_count || 0) - (a.copy_count || 0);
+          }
+          return new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime();
+        });
+
+        const canonical = group[0];
+        const duplicates = group.slice(1);
+
+        for (const dup of duplicates) {
+          idsToDelete.push(dup.id);
+          duplicatesRemoved++;
+
+          // Migrate tags to canonical prompt
+          const dupTags = queryAll(db, 'SELECT tag_id FROM prompt_tags WHERE prompt_id = ?', [dup.id]);
+          for (const dt of dupTags) {
+            runQuery(db, 'INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id) VALUES (?, ?)', [canonical.id, dt.tag_id]);
+          }
+
+          // Re-link versions to canonical prompt
+          runQuery(db, 'UPDATE prompt_versions SET prompt_id = ? WHERE prompt_id = ?', [canonical.id, dup.id]);
+          runQuery(db, 'DELETE FROM prompt_tags WHERE prompt_id = ?', [dup.id]);
+          runQuery(db, 'DELETE FROM prompts WHERE id = ?', [dup.id]);
+        }
+      }
+    }
+
+    // Clean duplicate versions pointing to the same prompt
+    const allVersions = queryAll(
+      db,
+      `SELECT pv.id, pv.prompt_id, pv.version_number, pv.content 
+       FROM prompt_versions pv 
+       JOIN prompts p ON pv.prompt_id = p.id 
+       WHERE p.user_id = ? 
+       ORDER BY pv.prompt_id, pv.version_number ASC`,
+      [userId]
+    );
+
+    const versionMap = new Map<string, string[]>();
+    for (const v of allVersions) {
+      const vKey = `${v.prompt_id}|||${(v.content || '').trim()}`;
+      if (!versionMap.has(vKey)) {
+        versionMap.set(vKey, []);
+      }
+      versionMap.get(vKey)!.push(v.id);
+    }
+
+    for (const [_vKey, vIds] of versionMap.entries()) {
+      if (vIds.length > 1) {
+        const toDelete = vIds.slice(1);
+        for (const id of toDelete) {
+          runQuery(db, 'DELETE FROM prompt_versions WHERE id = ?', [id]);
+        }
+      }
+    }
+
+    // Delete redundant prompt records from Supabase PostgreSQL as well
+    if (idsToDelete.length > 0) {
+      let prefs = userPreferences;
+      if (prefs === undefined) {
+        const userRow = queryOne(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+        prefs = userRow?.preferences;
+      }
+      const config = getEffectiveSupabaseConfig(prefs);
+      if (config.supabaseUrl && config.supabaseKey) {
+        const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+        if (client) {
+          try {
+            await client.from('prompts').delete().in('id', idsToDelete).eq('user_id', userId);
+          } catch (e: any) {
+            console.warn('Supabase deduplication delete notice:', e.message);
+          }
+        }
+      }
+    }
+
+    return { duplicatesRemoved, groupsCleaned };
+  } catch (err: any) {
+    console.warn('Deduplication notice:', err.message);
+    return { duplicatesRemoved: 0, groupsCleaned: 0 };
+  }
+}
+
 export async function pullUserDataFromSupabase(
   userId: string,
   queryOne: (db: any, sql: string, params?: any[]) => any,
   runQuery: (db: any, sql: string, params?: any[]) => void,
-  db: any
-): Promise<boolean> {
+  db: any,
+  userPreferences?: string | null
+): Promise<PullUserDataResult> {
   try {
-    const config = getEffectiveSupabaseConfig();
-    if (!config.supabaseUrl || !config.supabaseKey) return false;
+    let prefs = userPreferences;
+    if (prefs === undefined) {
+      const userRow = queryOne(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+      prefs = userRow?.preferences;
+    }
+    const config = getEffectiveSupabaseConfig(prefs);
+    if (!config.supabaseUrl || !config.supabaseKey) {
+      return { success: false, message: 'Supabase URL and API Key are not configured.' };
+    }
 
     const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
-    if (!client) return false;
+    if (!client) {
+      return { success: false, message: 'Could not initialize Supabase client.' };
+    }
 
-    // 1. Fetch user from Supabase
-    const { data: user, error: userErr } = await client
+    // 1. Fetch user from Supabase if available
+    const { data: user } = await client
       .from('users')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
 
-    if (userErr || !user) return false;
-
-    // 2. Fetch other entities from Supabase
-    const [categoriesRes, collectionsRes, tagsRes, promptsRes, promptVersionsRes] = await Promise.all([
+    // 2. Fetch all user records from Supabase tables
+    const [categoriesRes, collectionsRes, tagsRes, promptsRes] = await Promise.all([
       client.from('categories').select('*').eq('user_id', userId),
       client.from('collections').select('*').eq('user_id', userId),
       client.from('tags').select('*').eq('user_id', userId),
       client.from('prompts').select('*').eq('user_id', userId),
-      client.from('prompt_versions').select('*, prompts!inner(user_id)').eq('prompts.user_id', userId),
     ]);
 
-    // Also need prompt_tags
+    const promptIds = (promptsRes.data || []).map((p: any) => p.id);
     let promptTags: any[] = [];
-    const promptIds = (promptsRes.data || []).map((p) => p.id);
+    let promptVersions: any[] = [];
+
     if (promptIds.length > 0) {
-      const { data: ptData } = await client
-        .from('prompt_tags')
-        .select('*')
-        .in('prompt_id', promptIds);
-      promptTags = ptData || [];
+      const [ptRes, pvRes] = await Promise.all([
+        client.from('prompt_tags').select('*').in('prompt_id', promptIds),
+        client.from('prompt_versions').select('*').in('prompt_id', promptIds),
+      ]);
+      promptTags = ptRes.data || [];
+      promptVersions = pvRes.data || [];
     }
 
-    // 3. Populate SQLite Database
-    // Insert/Update User
-    const userPrefsStr = JSON.stringify(user.preferences || {});
-    runQuery(
-      db,
-      'INSERT OR REPLACE INTO users (id, email, password_hash, display_name, preferences, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [user.id, user.email, user.password_hash, user.display_name, userPrefsStr, user.created_at, user.updated_at]
-    );
+    // 3. Populate SQLite Database with fetched Supabase data
+    if (user) {
+      const userPrefsStr = typeof user.preferences === 'string'
+        ? user.preferences
+        : JSON.stringify(user.preferences || {});
+      runQuery(
+        db,
+        'INSERT OR REPLACE INTO users (id, email, password_hash, display_name, preferences, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [user.id, user.email, user.password_hash, user.display_name, userPrefsStr, user.created_at, user.updated_at]
+      );
+    }
 
-    // Insert/Update Categories
-    if (categoriesRes.data) {
+    // Categories
+    let categoryCount = 0;
+    if (categoriesRes.data && categoriesRes.data.length > 0) {
       for (const cat of categoriesRes.data) {
         runQuery(
           db,
@@ -450,10 +601,12 @@ export async function pullUserDataFromSupabase(
           [cat.id, cat.user_id, cat.name, cat.description || null, cat.created_at, cat.updated_at]
         );
       }
+      categoryCount = categoriesRes.data.length;
     }
 
-    // Insert/Update Collections
-    if (collectionsRes.data) {
+    // Collections
+    let collectionCount = 0;
+    if (collectionsRes.data && collectionsRes.data.length > 0) {
       for (const col of collectionsRes.data) {
         runQuery(
           db,
@@ -461,10 +614,12 @@ export async function pullUserDataFromSupabase(
           [col.id, col.user_id, col.category_id || null, col.name, col.description || null, col.created_at, col.updated_at]
         );
       }
+      collectionCount = collectionsRes.data.length;
     }
 
-    // Insert/Update Tags
-    if (tagsRes.data) {
+    // Tags
+    let tagCount = 0;
+    if (tagsRes.data && tagsRes.data.length > 0) {
       for (const tag of tagsRes.data) {
         runQuery(
           db,
@@ -472,10 +627,12 @@ export async function pullUserDataFromSupabase(
           [tag.id, tag.user_id, tag.name, tag.created_at, tag.updated_at]
         );
       }
+      tagCount = tagsRes.data.length;
     }
 
-    // Insert/Update Prompts
-    if (promptsRes.data) {
+    // Prompts
+    let promptCount = 0;
+    if (promptsRes.data && promptsRes.data.length > 0) {
       for (const p of promptsRes.data) {
         runQuery(
           db,
@@ -500,9 +657,10 @@ export async function pullUserDataFromSupabase(
           ]
         );
       }
+      promptCount = promptsRes.data.length;
     }
 
-    // Insert/Update Prompt Tags
+    // Prompt Tags
     for (const pt of promptTags) {
       runQuery(
         db,
@@ -511,20 +669,57 @@ export async function pullUserDataFromSupabase(
       );
     }
 
-    // Insert/Update Prompt Versions
-    if (promptVersionsRes.data) {
-      for (const pv of promptVersionsRes.data) {
+    // Prompt Versions
+    let versionCount = 0;
+    if (promptVersions.length > 0) {
+      for (const pv of promptVersions) {
         runQuery(
           db,
           'INSERT OR REPLACE INTO prompt_versions (id, prompt_id, version_number, title, description, content, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
           [pv.id, pv.prompt_id, pv.version_number, pv.title, pv.description || null, pv.content, pv.created_at]
         );
       }
+      versionCount = promptVersions.length;
     }
 
-    return true;
+    // Run auto-deduplication to guarantee no duplicates
+    const { duplicatesRemoved } = await deduplicatePromptsForUser(
+      userId,
+      queryOne,
+      (dbAny, sql, params) => {
+        const stmt = dbAny.prepare(sql);
+        if (params && params.length > 0) stmt.bind(params);
+        const results: any[] = [];
+        while (stmt.step()) results.push(stmt.getAsObject());
+        stmt.free();
+        return results;
+      },
+      runQuery,
+      db,
+      prefs
+    );
+
+    const message = duplicatesRemoved > 0
+      ? `Successfully fetched ${promptCount} prompts from Supabase API and cleaned ${duplicatesRemoved} duplicate prompt(s).`
+      : `Successfully fetched and synchronized ${promptCount} prompts, ${categoryCount} categories, ${collectionCount} collections, and ${tagCount} tags from Supabase API.`;
+
+    return {
+      success: true,
+      message,
+      fetchedCounts: {
+        prompts: promptCount,
+        categories: categoryCount,
+        collections: collectionCount,
+        tags: tagCount,
+        versions: versionCount,
+      },
+      duplicatesRemoved,
+    };
   } catch (err: any) {
     console.warn('Auto-pull from Supabase database error:', err.message);
-    return false;
+    return {
+      success: false,
+      message: `Auto-fetch from Supabase API notice: ${err.message}`,
+    };
   }
 }

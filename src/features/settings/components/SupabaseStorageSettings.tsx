@@ -28,7 +28,7 @@ export const SupabaseStorageSettings: React.FC = () => {
   // Custom Feature Hooks
   const { config, isLoading: isConfigLoading, saveConfig, testConnection, isTesting: isTestingConnection } = useSupabaseConfig();
   const { dbStats, isDbStatsLoading, refetchDbStats, schemaSql, testDbConnection, isTestingDb } = useSupabaseStats();
-  const { pushLocalToRemote, isSyncing } = useSupabaseSync();
+  const { pushLocalToRemote, isSyncing, pullRemoteToLocal, isFetchingRemote, deduplicatePrompts, isDeduplicating } = useSupabaseSync();
   const {
     backups,
     isLoading: isBackupsLoading,
@@ -84,15 +84,15 @@ export const SupabaseStorageSettings: React.FC = () => {
             <Alert
               type="success"
               showIcon
-              title="Supabase Connected"
-              description="Your prompt library is synced with your relational database."
+              message="Supabase Connected & Auto-Sync Active"
+              description="Your prompt library automatically fetches and synchronizes data with your Supabase PostgreSQL database."
             />
           ) : (
             <Alert
               type="warning"
               showIcon
-              title="Supabase Disconnected"
-              description="Please configure credentials and verify that the SQL database schema is setup."
+              message="Supabase Disconnected"
+              description="Please configure credentials and verify that the SQL database schema is setup to enable automatic syncing."
             />
           )}
         </div>
@@ -147,6 +147,10 @@ export const SupabaseStorageSettings: React.FC = () => {
             isDbStatsLoading={isDbStatsLoading}
             onPushLocalToRemote={pushLocalToRemote}
             isSyncing={isSyncing}
+            onPullRemoteToLocal={pullRemoteToLocal}
+            isFetchingRemote={isFetchingRemote}
+            onDeduplicate={deduplicatePrompts}
+            isDeduplicating={isDeduplicating}
             stats={dbStats?.stats}
           />
         </div>

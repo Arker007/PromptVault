@@ -54,7 +54,7 @@ export const PromptActiveFilters: React.FC<PromptActiveFiltersProps> = ({
       <Text type="secondary" style={{ fontSize: 12 }}>
         Active filters:
       </Text>
-      <Space orientation="horizontal" size={6} wrap>
+      <Space direction="horizontal" size={6} wrap>
         {activeTags.map((item, idx) => (
           <Tag
             key={`${item.key}-${item.value || idx}`}

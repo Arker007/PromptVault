@@ -40,7 +40,7 @@ export const SupabaseSqlModal: React.FC<SupabaseSqlModalProps> = ({
           {isCopied ? 'Copied to Clipboard' : 'Copy SQL Script'}
         </Button>,
       ]}
-      destroyOnHidden
+      destroyOnClose
     >
       <Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
         Copy and paste this script into your <strong>Supabase Dashboard &gt; SQL Editor</strong> and click <strong>Run</strong>.

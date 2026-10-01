@@ -17,6 +17,7 @@ import {
   InboxOutlined,
   RollbackOutlined,
   PushpinOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import { PromptQueryParams, CategoryItem, CollectionItem, TagItem } from '@/shared/types/index.ts';
 
@@ -31,6 +32,8 @@ interface PromptToolbarProps {
   onBulkAction: (action: 'delete' | 'archive' | 'restore' | 'addTag' | 'pin' | 'unpin') => void;
   onClearSelection: () => void;
   isArchivedView?: boolean;
+  onFetchSupabase?: () => void;
+  isFetchingSupabase?: boolean;
 }
 
 export const PromptToolbar: React.FC<PromptToolbarProps> = ({
@@ -44,6 +47,8 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
   onBulkAction,
   onClearSelection,
   isArchivedView,
+  onFetchSupabase,
+  isFetchingSupabase,
 }) => {
   const { token } = theme.useToken();
 
@@ -118,6 +123,18 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
               </Button>
             </Badge>
           </Tooltip>
+
+          {onFetchSupabase && (
+            <Tooltip title="Fetch latest prompts from Supabase API">
+              <Button
+                icon={<SyncOutlined spin={isFetchingSupabase} />}
+                onClick={onFetchSupabase}
+                loading={isFetchingSupabase}
+              >
+                Fetch Supabase
+              </Button>
+            </Tooltip>
+          )}
         </Flex>
 
         {/* Right: Sort By */}
@@ -155,7 +172,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
             backdropFilter: 'blur(8px)',
           }}
         >
-          <Space orientation="horizontal" size={10}>
+          <Space direction="horizontal" size={10}>
             <Badge
               count={selectedCount}
               style={{
@@ -180,7 +197,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
             }}
           />
 
-          <Space orientation="horizontal" size={8}>
+          <Space direction="horizontal" size={8}>
             {!isArchivedView && (
               <>
                 <Button

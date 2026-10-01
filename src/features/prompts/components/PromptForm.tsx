@@ -201,7 +201,7 @@ export const PromptForm: React.FC<PromptFormProps> = ({
         name="content"
         label={
           <Flex justify="space-between" align="center" style={{ width: '100%' }}>
-            <Space orientation="horizontal" size={6}>
+            <Space direction="horizontal" size={6}>
               <span>Prompt Content</span>
               <Text type="secondary" style={{ fontSize: 12 }}>
                 (Use {'{{variable}}'} for fillable inputs)

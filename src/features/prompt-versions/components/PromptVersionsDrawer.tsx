@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   Drawer,
-  Listy,
+  List,
   Typography,
   Button,
   Flex,
@@ -65,14 +65,14 @@ export const PromptVersionsDrawer: React.FC<PromptVersionsDrawerProps> = ({
   return (
     <Drawer
       title={
-        <Space orientation="horizontal" size={8}>
+        <Space direction="horizontal" size={8}>
           <HistoryOutlined />
           <span>Version History ({versions.length})</span>
         </Space>
       }
       open={open}
       onClose={onClose}
-      size={600}
+      width={600}
     >
       {isLoading && (
         <Flex justify="center" align="center" style={{ height: 200 }}>
@@ -83,17 +83,17 @@ export const PromptVersionsDrawer: React.FC<PromptVersionsDrawerProps> = ({
       {isError && (
         <Alert
           type="error"
-          title="Failed to load version history"
+          message="Failed to load version history"
           showIcon
         />
       )}
 
       {versions.length > 0 && (
-        <Listy
-          items={versions}
+        <List
+          dataSource={versions}
           rowKey="id"
-          virtual={false}
-          itemRender={(v, index) => {
+          split={false}
+          renderItem={(v, index) => {
             const isLatest = index === 0;
             const isViewing = selectedVersion?.id === v.id;
 
@@ -110,7 +110,7 @@ export const PromptVersionsDrawer: React.FC<PromptVersionsDrawerProps> = ({
                 }}
               >
                 <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
-                  <Space orientation="horizontal" size={8}>
+                  <Space direction="horizontal" size={8}>
                     <Tag color={isLatest ? 'blue' : 'default'} style={{ margin: 0 }}>
                       v{v.versionNumber} {isLatest ? '(Current)' : ''}
                     </Tag>

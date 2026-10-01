@@ -92,7 +92,7 @@ export const TagsPage: React.FC = () => {
       key: 'name',
       align: 'left',
       render: (name, record) => (
-        <Space orientation="horizontal" size={8}>
+        <Space direction="horizontal" size={8}>
           <Tag
             icon={<TagsOutlined />}
             style={{ fontSize: 13, padding: '2px 8px', cursor: 'pointer' }}
@@ -133,7 +133,7 @@ export const TagsPage: React.FC = () => {
       align: 'right',
       width: 120,
       render: (_, record) => (
-        <Space orientation="horizontal" size={4}>
+        <Space direction="horizontal" size={4}>
           <Tooltip title="Edit Tag">
             <Button
               type="text"
@@ -199,7 +199,7 @@ export const TagsPage: React.FC = () => {
         onCancel={() => setModalOpen(false)}
         onOk={() => form.submit()}
         confirmLoading={saveMutation.isPending}
-        destroyOnHidden
+        destroyOnClose
       >
         <Form
           form={form}

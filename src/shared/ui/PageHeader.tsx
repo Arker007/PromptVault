@@ -27,7 +27,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       style={{ marginBottom: 20 }}
     >
       <div>
-        <Space orientation="horizontal" size={8} align="baseline">
+        <Space direction="horizontal" size={8} align="baseline">
           <Title
             level={3}
             style={{
