@@ -142,12 +142,12 @@ export const PromptFormDrawer: React.FC<PromptFormDrawerProps> = ({
       title={isEditing ? 'Edit Prompt' : 'Create New Prompt'}
       open={open}
       onClose={handleClose}
-      width={720}
-      destroyOnClose
+      size={720}
+      destroyOnHidden
       footer={
         <Flex justify="space-between" align="center">
           <Button onClick={handleClose}>Cancel</Button>
-          <Space direction="horizontal" size={8}>
+          <Space orientation="horizontal" size={8}>
             <span style={{ fontSize: 11, color: '#8c8c8c' }}>⌘ + Enter to save</span>
             <Button type="primary" loading={isSaving} onClick={handleSave}>
               {isEditing ? 'Save Changes' : 'Create Prompt'}

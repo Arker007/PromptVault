@@ -39,7 +39,16 @@ export const supabaseApi = {
     return apiClient.post('/api/supabase/db/pull-from-remote', {});
   },
 
-  deduplicate: async (): Promise<{ success: boolean; duplicatesRemoved: number; groupsCleaned: number; message: string }> => {
+  deduplicate: async (): Promise<{
+    success: boolean;
+    duplicatesRemoved: number;
+    groupsCleaned: number;
+    categoriesCleaned?: number;
+    collectionsCleaned?: number;
+    tagsCleaned?: number;
+    versionsCleaned?: number;
+    message: string;
+  }> => {
     return apiClient.post('/api/prompts/deduplicate', {});
   },
 

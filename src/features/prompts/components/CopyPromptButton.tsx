@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button, Tooltip } from 'antd';
-import { CopyOutlined, CheckOutlined } from '@ant-design/icons';
+import { CopyOutlined } from '@ant-design/icons';
 import { useCopyPrompt } from '../hooks/useCopyPrompt.ts';
 
 interface CopyPromptButtonProps {
@@ -25,17 +25,21 @@ export const CopyPromptButton: React.FC<CopyPromptButtonProps> = ({
     copyPrompt(id, content);
   };
 
-  return (
-    <Tooltip title="Copy prompt text to clipboard">
-      <Button
-        type={type}
-        size={size}
-        icon={<CopyOutlined />}
-        onClick={handleCopy}
-        loading={isCopying}
-      >
-        {showLabel ? 'Copy' : ''}
-      </Button>
-    </Tooltip>
+  const button = (
+    <Button
+      type={type}
+      size={size}
+      icon={<CopyOutlined />}
+      onClick={handleCopy}
+      loading={isCopying}
+    >
+      {showLabel ? 'Copy' : ''}
+    </Button>
   );
+
+  if (!showLabel) {
+    return <Tooltip title="Copy prompt text">{button}</Tooltip>;
+  }
+
+  return button;
 };

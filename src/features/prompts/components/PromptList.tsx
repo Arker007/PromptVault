@@ -1,5 +1,5 @@
 import React from 'react';
-import { List, Skeleton, Pagination, Flex, theme } from 'antd';
+import { Skeleton, Pagination, Flex, theme } from 'antd';
 import { PromptSummaryDTO } from '@/shared/types/index.ts';
 import { PromptListItem } from './PromptListItem.tsx';
 import { PromptEmptyState } from './PromptEmptyState.tsx';
@@ -18,7 +18,7 @@ interface PromptListProps {
   onEditPrompt: (prompt: PromptSummaryDTO) => void;
   onUseVariables: (prompt: PromptSummaryDTO) => void;
   onClearFilters: () => void;
-  onCreatePrompt: () => void;
+  onCreatePrompt?: () => void;
 }
 
 export const PromptList: React.FC<PromptListProps> = ({
@@ -72,11 +72,8 @@ export const PromptList: React.FC<PromptListProps> = ({
 
   return (
     <div>
-      <List
-        dataSource={items}
-        rowKey="id"
-        split={false}
-        renderItem={(item) => (
+      <Flex vertical gap={8}>
+        {items.map((item) => (
           <PromptListItem
             key={item.id}
             prompt={item}
@@ -86,8 +83,8 @@ export const PromptList: React.FC<PromptListProps> = ({
             onEdit={onEditPrompt}
             onUseVariables={onUseVariables}
           />
-        )}
-      />
+        ))}
+      </Flex>
 
       {/* Server-side Pagination */}
       <Flex justify="flex-end" style={{ marginTop: 20 }}>

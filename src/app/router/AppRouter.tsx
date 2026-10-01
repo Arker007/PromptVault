@@ -16,14 +16,8 @@ export const AppRouter: React.FC = () => {
         {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Protected Application Routes inside AppShell */}
-        <Route
-          element={
-            <ProtectedRoute>
-              <AppShell />
-            </ProtectedRoute>
-          }
-        >
+        {/* Public Application Website Routes inside AppShell */}
+        <Route element={<AppShell />}>
           <Route path="/" element={<Navigate to="/prompts" replace />} />
           <Route path="/prompts" element={<PromptLibraryPage preset="all" />} />
           <Route path="/prompts/pinned" element={<PromptLibraryPage preset="pinned" />} />
@@ -33,12 +27,56 @@ export const AppRouter: React.FC = () => {
           <Route path="/categories" element={<CategoriesPage />} />
           <Route path="/collections" element={<CollectionsPage />} />
           <Route path="/tags" element={<TagsPage />} />
-          <Route path="/settings" element={<Navigate to="/settings/profile" replace />} />
-          <Route path="/settings/profile" element={<SettingsPage />} />
-          <Route path="/settings/security" element={<SettingsPage />} />
-          <Route path="/settings/preferences" element={<SettingsPage />} />
-          <Route path="/settings/supabase" element={<SettingsPage />} />
-          <Route path="/settings/backup" element={<SettingsPage />} />
+
+          {/* Settings routes are protected inside AppShell */}
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Navigate to="/settings/profile" replace />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/profile"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/security"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/preferences"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/supabase"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/backup"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
         </Route>
 
         {/* Fallback */}

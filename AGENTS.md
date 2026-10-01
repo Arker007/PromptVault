@@ -6,7 +6,6 @@
 - **DO NOT** create custom ad-hoc HTML buttons, modals, dropdowns, tooltips, dialogs, tags, inputs, tables, or drawers.
 - **DO NOT** use generic UI libraries (e.g., shadcn, MUI, Bootstrap, Chakra) or hand-coded equivalents.
 - **DO NOT** override Ant Design component styles with arbitrary utility classes that break Light/Dark theme synchronization.
-- **STRICT API DISCIPLINE**: Always use modern, non-deprecated Ant Design v5 component properties.
 
 ---
 
@@ -88,5 +87,3 @@ To maintain a highly decoupled, scalable, and professional codebase, we enforce 
 - **Strict Isolation**: A feature slice **MUST NOT** import internal helper functions, components, or hooks directly from another feature slice's internal folders.
 - **Shared Promotion**: If a module or sub-component becomes useful in more than one business feature, it **MUST** be promoted to `/src/shared/` to maintain clean boundary encapsulation.
 - **No Circular Imports**: Avoid circular dependencies across layers (e.g., shared importing features, or app layer importing components inside features directly outside of standard routing).
-
-

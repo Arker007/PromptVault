@@ -65,7 +65,7 @@ export const LoginPage: React.FC = () => {
         }}
       >
         <Flex vertical align="center" style={{ marginBottom: 24, textAlign: 'center' }}>
-          <Space direction="horizontal" size={8} style={{ marginBottom: 4 }}>
+          <Space orientation="horizontal" size={8} style={{ marginBottom: 4 }}>
             <KeyOutlined style={{ fontSize: 20, color: token.colorPrimary }} />
             <Title level={4} style={{ margin: 0, fontWeight: 600 }}>
               PromptVault
@@ -168,7 +168,7 @@ export const LoginPage: React.FC = () => {
             >
               <Input
                 prefix={<UserOutlined style={{ color: token.colorTextSecondary }} />}
-                placeholder="e.g. Alex Morgan"
+                placeholder="e.g. Vishal Sharma"
               />
             </Form.Item>
 

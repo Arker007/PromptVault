@@ -33,6 +33,7 @@ import {
   AppstoreOutlined,
   TagsOutlined,
   CloudServerOutlined,
+  LoginOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/features/auth/index.ts';
@@ -43,7 +44,7 @@ import { PromptFormDrawer } from '@/features/prompts/components/PromptFormDrawer
 const { Text } = Typography;
 
 export const AppShell: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const { isDarkMode, toggleDarkMode } = useThemeMode();
   const { token } = theme.useToken();
   const navigate = useNavigate();
@@ -71,7 +72,7 @@ export const AppShell: React.FC = () => {
         target.isContentEditable;
 
       if (!isInput) {
-        if (e.key === 'n' || e.key === 'N') {
+        if ((e.key === 'n' || e.key === 'N') && isAuthenticated) {
           e.preventDefault();
           setCreatePromptOpen(true);
         }
@@ -80,7 +81,7 @@ export const AppShell: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isAuthenticated]);
 
   const currentPath = location.pathname;
 
@@ -135,12 +136,16 @@ export const AppShell: React.FC = () => {
         name: 'Tags',
         icon: <TagsOutlined />,
       },
-      {
-        key: '/settings/profile',
-        path: '/settings/profile',
-        name: 'Settings & Cloud Storage',
-        icon: <SettingOutlined />,
-      },
+      ...(isAuthenticated
+        ? [
+            {
+              key: '/settings/profile',
+              path: '/settings/profile',
+              name: 'Settings & Cloud Storage',
+              icon: <SettingOutlined />,
+            },
+          ]
+        : []),
     ],
   };
 
@@ -316,120 +321,138 @@ export const AppShell: React.FC = () => {
               paddingInlinePageContainerContent: 20,
             },
           }}
-          actionsRender={() => [
-            <Button
-              key="search"
-              onClick={() => setSearchOpen(true)}
+          headerContentRender={() => (
+            <div
               style={{
-                width: 240,
-                height: 34,
-                display: 'inline-flex',
+                display: 'flex',
+                justifyContent: 'center',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                color: token.colorTextSecondary,
-                backgroundColor: token.colorBgLayout,
-                borderColor: token.colorBorderSecondary,
-                padding: '0 10px',
-                borderRadius: 6,
+                width: '100%',
+                padding: '0 16px',
               }}
             >
-              <Flex align="center" gap={8} style={{ minWidth: 0 }}>
-                <SearchOutlined style={{ fontSize: 13 }} />
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: token.colorTextTertiary,
-                    lineHeight: 'normal',
-                  }}
-                  ellipsis
-                >
-                  Search prompts, tags...
-                </Text>
-              </Flex>
-
-              <Tag
-                bordered={true}
+              <Button
+                onClick={() => setSearchOpen(true)}
                 style={{
-                  margin: 0,
-                  fontSize: 10,
-                  fontWeight: 600,
-                  lineHeight: '16px',
-                  height: 18,
-                  padding: '0 4px',
-                  backgroundColor: token.colorBgContainer,
-                  borderColor: token.colorBorderSecondary,
-                  borderRadius: 3,
+                  width: '100%',
+                  maxWidth: 420,
+                  height: 36,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                   color: token.colorTextSecondary,
+                  backgroundColor: token.colorBgLayout,
+                  borderColor: token.colorBorderSecondary,
+                  padding: '0 12px',
+                  borderRadius: token.borderRadius,
+                  boxShadow: 'none',
                 }}
               >
-                ⌘K
-              </Tag>
-            </Button>,
-
-            <Tooltip key="theme" title={isDarkMode ? 'Light Mode' : 'Dark Mode'}>
-              <Button
-                type="text"
-                icon={isDarkMode ? <SunOutlined style={{ fontSize: 15 }} /> : <MoonOutlined style={{ fontSize: 15 }} />}
-                onClick={toggleDarkMode}
-                aria-label="Toggle theme"
-                style={{ width: 34, height: 34, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
-              />
-            </Tooltip>,
-
-            <Tooltip key="new-prompt" title="Create prompt (N)">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setCreatePromptOpen(true)}
-                style={{ height: 34, padding: '0 14px', fontSize: 13, fontWeight: 500 }}
-              >
-                New Prompt
-              </Button>
-            </Tooltip>,
-          ]}
-          avatarProps={{
-            src: undefined,
-            title: user?.displayName || 'User',
-            size: 'small',
-            render: (_props, dom) => {
-              return (
-                <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
-                  <div
+                <Flex align="center" gap={8} style={{ minWidth: 0 }}>
+                  <SearchOutlined style={{ fontSize: 14 }} />
+                  <Text
                     style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      cursor: 'pointer',
-                      padding: '4px 6px',
-                      borderRadius: 6,
+                      fontSize: 13,
+                      color: token.colorTextTertiary,
+                      lineHeight: 'normal',
                     }}
+                    ellipsis
                   >
-                    <Avatar
-                      size={26}
-                      style={{
-                        backgroundColor: token.colorPrimary,
-                        fontSize: 12,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {user?.displayName ? user.displayName.slice(0, 1).toUpperCase() : 'U'}
-                    </Avatar>
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        maxWidth: 110,
-                        lineHeight: 'normal',
-                        color: token.colorText,
-                      }}
-                      ellipsis
-                    >
-                      {user?.displayName}
-                    </Text>
-                  </div>
-                </Dropdown>
-              );
-            },
-          }}
+                    Search prompts, tags, categories...
+                  </Text>
+                </Flex>
+
+                <Tag
+                  bordered={true}
+                  style={{
+                    margin: 0,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    lineHeight: '18px',
+                    height: 20,
+                    padding: '0 6px',
+                    backgroundColor: token.colorBgContainer,
+                    borderColor: token.colorBorderSecondary,
+                    borderRadius: 4,
+                    color: token.colorTextSecondary,
+                  }}
+                >
+                  ⌘K
+                </Tag>
+              </Button>
+            </div>
+          )}
+          actionsRender={() =>
+            [
+              <Tooltip key="theme" title={isDarkMode ? 'Light Mode' : 'Dark Mode'}>
+                <Button
+                  type="text"
+                  icon={isDarkMode ? <SunOutlined style={{ fontSize: 15 }} /> : <MoonOutlined style={{ fontSize: 15 }} />}
+                  onClick={toggleDarkMode}
+                  aria-label="Toggle theme"
+                  style={{ width: 34, height: 34, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                />
+              </Tooltip>,
+              !isAuthenticated && (
+                <Button
+                  key="login"
+                  type="primary"
+                  icon={<LoginOutlined />}
+                  onClick={() => navigate('/login')}
+                  style={{ fontWeight: 600 }}
+                >
+                  Sign In
+                </Button>
+              ),
+            ].filter(Boolean) as React.ReactNode[]
+          }
+          avatarProps={
+            isAuthenticated
+              ? {
+                  src: undefined,
+                  title: user?.displayName || 'User',
+                  size: 'small',
+                  render: (_props, dom) => {
+                    return (
+                      <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            cursor: 'pointer',
+                            padding: '4px 6px',
+                            borderRadius: 6,
+                          }}
+                        >
+                          <Avatar
+                            size={26}
+                            style={{
+                              backgroundColor: token.colorPrimary,
+                              fontSize: 12,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {user?.displayName ? user.displayName.slice(0, 1).toUpperCase() : 'U'}
+                          </Avatar>
+                          <Text
+                            style={{
+                              fontSize: 13,
+                              maxWidth: 110,
+                              lineHeight: 'normal',
+                              color: token.colorText,
+                            }}
+                            ellipsis
+                          >
+                            {user?.displayName}
+                          </Text>
+                        </div>
+                      </Dropdown>
+                    );
+                  },
+                }
+              : undefined
+          }
           contentStyle={{
             padding: 0,
             margin: 0,

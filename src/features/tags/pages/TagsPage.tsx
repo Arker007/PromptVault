@@ -27,10 +27,12 @@ import { PageHeader } from '@/shared/ui/PageHeader.tsx';
 import { apiClient } from '@/shared/api/apiClient.ts';
 import { TagItem } from '@/shared/types/index.ts';
 import { formatRelativeTime } from '@/shared/lib/formatters.ts';
+import { useAuth } from '@/features/auth/index.ts';
 
 const { Text } = Typography;
 
 export const TagsPage: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -92,7 +94,7 @@ export const TagsPage: React.FC = () => {
       key: 'name',
       align: 'left',
       render: (name, record) => (
-        <Space direction="horizontal" size={8}>
+        <Space orientation="horizontal" size={8}>
           <Tag
             icon={<TagsOutlined />}
             style={{ fontSize: 13, padding: '2px 8px', cursor: 'pointer' }}
@@ -127,36 +129,37 @@ export const TagsPage: React.FC = () => {
         </Text>
       ),
     },
-    {
-      title: 'Actions',
-      key: 'actions',
-      align: 'right',
-      width: 120,
-      render: (_, record) => (
-        <Space direction="horizontal" size={4}>
-          <Tooltip title="Edit Tag">
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => handleOpenEdit(record)}
-            />
-          </Tooltip>
-          <Popconfirm
-            title="Delete Tag?"
-            description="This will remove this tag from all associated prompts."
-            okText="Delete"
-            cancelText="Cancel"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => deleteMutation.mutate(record.id)}
-          >
-            <Tooltip title="Delete Tag">
-              <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-            </Tooltip>
-          </Popconfirm>
-        </Space>
-      ),
-    },
+    ...(isAuthenticated
+      ? [
+          {
+            title: 'Actions',
+            key: 'actions',
+            align: 'right' as const,
+            width: 120,
+            render: (_: any, record: TagItem) => (
+              <Space orientation="horizontal" size={4}>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => handleOpenEdit(record)}
+                  aria-label="Edit Tag"
+                />
+                <Popconfirm
+                  title="Delete Tag?"
+                  description="This will remove this tag from all associated prompts."
+                  okText="Delete"
+                  cancelText="Cancel"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={() => deleteMutation.mutate(record.id)}
+                >
+                  <Button type="text" size="small" danger icon={<DeleteOutlined />} aria-label="Delete Tag" />
+                </Popconfirm>
+              </Space>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -166,9 +169,11 @@ export const TagsPage: React.FC = () => {
         count={tags.length}
         description="Lightweight, multi-label keywords for fine-grained search and filtering."
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate}>
-            New Tag
-          </Button>
+          isAuthenticated ? (
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate}>
+              New Tag
+            </Button>
+          ) : null
         }
       />
 
@@ -199,7 +204,7 @@ export const TagsPage: React.FC = () => {
         onCancel={() => setModalOpen(false)}
         onOk={() => form.submit()}
         confirmLoading={saveMutation.isPending}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={form}

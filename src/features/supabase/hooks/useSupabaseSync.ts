@@ -41,10 +41,16 @@ export const useSupabaseSync = () => {
   const deduplicateMutation = useMutation({
     mutationFn: supabaseApi.deduplicate,
     onSuccess: (res) => {
-      if (res.duplicatesRemoved > 0) {
-        message.success(`Cleaned ${res.duplicatesRemoved} duplicate prompt(s)!`);
+      if (
+        res.duplicatesRemoved > 0 ||
+        (res.categoriesCleaned && res.categoriesCleaned > 0) ||
+        (res.collectionsCleaned && res.collectionsCleaned > 0) ||
+        (res.tagsCleaned && res.tagsCleaned > 0) ||
+        (res.versionsCleaned && res.versionsCleaned > 0)
+      ) {
+        message.success(res.message);
       } else {
-        message.info('Your prompt library has no duplicate prompts.');
+        message.info(res.message || 'Your library has no duplicate items.');
       }
       queryClient.invalidateQueries({ queryKey: ['prompts'] });
       queryClient.invalidateQueries({ queryKey: ['supabase-db-stats'] });
@@ -53,7 +59,7 @@ export const useSupabaseSync = () => {
       queryClient.invalidateQueries({ queryKey: ['tags'] });
     },
     onError: (err: any) => {
-      message.error(err.message || 'Failed to remove duplicate prompts');
+      message.error(err.message || 'Failed to remove duplicate items');
     },
   });
 

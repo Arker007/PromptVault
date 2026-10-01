@@ -84,34 +84,24 @@ export const SupabaseCredentialsCard: React.FC<SupabaseCredentialsCardProps> = (
       }
       headerBordered
       extra={
-        <Space direction="horizontal" size={8}>
-          <Tooltip
-            title={
-              isEditingCredentials
-                ? 'Hide credential fields and instructions'
-                : 'Manage and update your stored Supabase URL & API key'
-            }
+        <Space orientation="horizontal" size={8}>
+          <Button
+            icon={<SettingOutlined />}
+            size="small"
+            type={isEditingCredentials ? 'primary' : 'default'}
+            onClick={() => setIsEditingCredentials(!isEditingCredentials)}
           >
-            <Button
-              icon={<SettingOutlined />}
-              size="small"
-              type={isEditingCredentials ? 'primary' : 'default'}
-              onClick={() => setIsEditingCredentials(!isEditingCredentials)}
-            >
-              {isEditingCredentials ? 'Hide Credentials' : 'Manage Credentials'}
-            </Button>
-          </Tooltip>
+            {isEditingCredentials ? 'Hide Credentials' : 'Manage Credentials'}
+          </Button>
 
-          <Tooltip title="Test connectivity to Supabase project API">
-            <Button
-              icon={<ApiOutlined />}
-              size="small"
-              loading={isTestingConnection}
-              onClick={handleTest}
-            >
-              Test Connection
-            </Button>
-          </Tooltip>
+          <Button
+            icon={<ApiOutlined />}
+            size="small"
+            loading={isTestingConnection}
+            onClick={handleTest}
+          >
+            Test Connection
+          </Button>
         </Space>
       }
     >

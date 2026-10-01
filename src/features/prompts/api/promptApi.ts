@@ -87,5 +87,14 @@ export const promptApi = {
     }),
 
   deduplicatePrompts: () =>
-    apiClient.post<{ success: boolean; duplicatesRemoved: number; groupsCleaned: number; message: string }>('/api/prompts/deduplicate'),
+    apiClient.post<{
+      success: boolean;
+      duplicatesRemoved: number;
+      groupsCleaned: number;
+      categoriesCleaned?: number;
+      collectionsCleaned?: number;
+      tagsCleaned?: number;
+      versionsCleaned?: number;
+      message: string;
+    }>('/api/prompts/deduplicate'),
 };

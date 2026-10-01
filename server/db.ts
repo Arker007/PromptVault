@@ -149,6 +149,9 @@ function initSchema(db: Database) {
   const count = userCheck[0]?.values[0]?.[0] as number;
   if (!count || count === 0) {
     seedInitialData(db);
+  } else {
+    // Update legacy default name if present
+    db.run("UPDATE users SET display_name = 'Vishal Sharma' WHERE display_name = 'Alex Morgan';");
   }
 }
 

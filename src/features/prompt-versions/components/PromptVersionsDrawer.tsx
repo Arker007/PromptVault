@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Drawer,
-  List,
   Typography,
   Button,
   Flex,
@@ -25,7 +24,7 @@ import { promptKeys } from '@/features/prompts/api/promptKeys.ts';
 import { PromptVersionItem } from '@/shared/types/index.ts';
 import { formatDateTime } from '@/shared/lib/formatters.ts';
 
-const { Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 interface PromptVersionsDrawerProps {
   open: boolean;
@@ -65,18 +64,18 @@ export const PromptVersionsDrawer: React.FC<PromptVersionsDrawerProps> = ({
   return (
     <Drawer
       title={
-        <Space direction="horizontal" size={8}>
+        <Space orientation="horizontal" size={8}>
           <HistoryOutlined />
           <span>Version History ({versions.length})</span>
         </Space>
       }
       open={open}
       onClose={onClose}
-      width={600}
+      size={600}
     >
       {isLoading && (
-        <Flex justify="center" align="center" style={{ height: 200 }}>
-          <Spin />
+        <Flex justify="center" align="center" style={{ height: 240 }}>
+          <Spin tip="Loading version history..." delay={150} size="large" />
         </Flex>
       )}
 
@@ -89,11 +88,8 @@ export const PromptVersionsDrawer: React.FC<PromptVersionsDrawerProps> = ({
       )}
 
       {versions.length > 0 && (
-        <List
-          dataSource={versions}
-          rowKey="id"
-          split={false}
-          renderItem={(v, index) => {
+        <Flex vertical gap={12}>
+          {versions.map((v, index) => {
             const isLatest = index === 0;
             const isViewing = selectedVersion?.id === v.id;
 
@@ -106,11 +102,10 @@ export const PromptVersionsDrawer: React.FC<PromptVersionsDrawerProps> = ({
                   backgroundColor: token.colorBgContainer,
                   border: `1px solid ${token.colorBorderSecondary}`,
                   borderRadius: token.borderRadius,
-                  marginBottom: 12,
                 }}
               >
                 <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
-                  <Space direction="horizontal" size={8}>
+                  <Space orientation="horizontal" size={8}>
                     <Tag color={isLatest ? 'blue' : 'default'} style={{ margin: 0 }}>
                       v{v.versionNumber} {isLatest ? '(Current)' : ''}
                     </Tag>
@@ -185,8 +180,8 @@ export const PromptVersionsDrawer: React.FC<PromptVersionsDrawerProps> = ({
                 </Flex>
               </div>
             );
-          }}
-        />
+          })}
+        </Flex>
       )}
     </Drawer>
   );

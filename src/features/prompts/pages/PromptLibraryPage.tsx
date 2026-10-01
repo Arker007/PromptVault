@@ -18,6 +18,7 @@ import { promptKeys } from '../api/promptKeys.ts';
 import { apiClient } from '@/shared/api/apiClient.ts';
 import { useSupabaseSync } from '@/features/supabase/hooks/useSupabaseSync.ts';
 import { useSupabaseConfig } from '@/features/supabase/hooks/useSupabaseConfig.ts';
+import { useAuth } from '@/features/auth/index.ts';
 import {
   PromptQueryParams,
   PromptSummaryDTO,
@@ -31,6 +32,7 @@ interface PromptLibraryPageProps {
 }
 
 export const PromptLibraryPage: React.FC<PromptLibraryPageProps> = ({ preset = 'all' }) => {
+  const { isAuthenticated } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const outletContext = useOutletContext<{ onOpenNewPrompt: () => void } | null>();
@@ -236,7 +238,7 @@ export const PromptLibraryPage: React.FC<PromptLibraryPageProps> = ({ preset = '
         count={data?.total}
         description={headerInfo.description}
         extra={
-          preset !== 'archived' ? (
+          isAuthenticated && preset !== 'archived' ? (
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -292,7 +294,7 @@ export const PromptLibraryPage: React.FC<PromptLibraryPageProps> = ({ preset = '
         onEditPrompt={(prompt) => setEditingPrompt(prompt)}
         onUseVariables={(prompt) => setVariablesModalPrompt(prompt)}
         onClearFilters={handleClearAllFilters}
-        onCreatePrompt={() => outletContext?.onOpenNewPrompt()}
+        onCreatePrompt={isAuthenticated ? () => outletContext?.onOpenNewPrompt() : undefined}
       />
 
       {/* Detail Drawer (Deep-link & scroll preservation) */}

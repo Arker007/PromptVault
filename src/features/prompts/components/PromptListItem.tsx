@@ -34,6 +34,7 @@ import { formatRelativeTime } from '@/shared/lib/formatters.ts';
 import { CopyPromptButton } from './CopyPromptButton.tsx';
 import { usePromptActions } from '../hooks/usePromptActions.ts';
 import { useDeletePrompt } from '../hooks/useDeletePrompt.ts';
+import { useAuth } from '@/features/auth/index.ts';
 
 const { Text, Paragraph } = Typography;
 
@@ -54,6 +55,7 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
   onEdit,
   onUseVariables,
 }) => {
+  const { isAuthenticated } = useAuth();
   const { token } = theme.useToken();
   const { toggleFavorite, togglePin, archivePrompt, restorePrompt, duplicatePrompt } = usePromptActions();
   const deleteMutation = useDeletePrompt();
@@ -145,7 +147,7 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
         {/* Top Header: Checkbox, Favorite, Pin, Title, Actions */}
         <Flex justify="space-between" align="flex-start" gap={12}>
           <Flex align="center" gap={8} style={{ minWidth: 0, flexWrap: 'wrap' }}>
-            {onToggleSelect && (
+            {isAuthenticated && onToggleSelect && (
               <div
                 onClick={(e) => e.stopPropagation()}
                 style={{
@@ -164,39 +166,52 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
               </div>
             )}
 
-            <Tooltip title={prompt.isPinned ? 'Unpin from top' : 'Pin to top'}>
-              <Button
-                type="text"
-                size="small"
-                icon={
-                  prompt.isPinned ? (
-                    <PushpinFilled style={{ color: token.colorPrimary, fontSize: 16 }} />
-                  ) : (
-                    <PushpinOutlined style={{ color: token.colorTextSecondary, fontSize: 16 }} />
-                  )
-                }
-                onClick={handlePinClick}
-                aria-label={prompt.isPinned ? 'Unpin from top' : 'Pin to top'}
-                style={{ padding: 0, width: 24, height: 24 }}
-              />
-            </Tooltip>
+            {isAuthenticated ? (
+              <>
+                <Tooltip title={prompt.isPinned ? 'Unpin from top' : 'Pin to top'}>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={
+                      prompt.isPinned ? (
+                        <PushpinFilled style={{ color: token.colorPrimary, fontSize: 16 }} />
+                      ) : (
+                        <PushpinOutlined style={{ color: token.colorTextSecondary, fontSize: 16 }} />
+                      )
+                    }
+                    onClick={handlePinClick}
+                    aria-label={prompt.isPinned ? 'Unpin from top' : 'Pin to top'}
+                    style={{ padding: 0, width: 24, height: 24 }}
+                  />
+                </Tooltip>
 
-            <Tooltip title={prompt.isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
-              <Button
-                type="text"
-                size="small"
-                icon={
-                  prompt.isFavorite ? (
-                    <StarFilled style={{ color: '#faad14', fontSize: 16 }} />
-                  ) : (
-                    <StarOutlined style={{ color: token.colorTextSecondary, fontSize: 16 }} />
-                  )
-                }
-                onClick={handleFavoriteClick}
-                aria-label={prompt.isFavorite ? 'Unfavorite' : 'Favorite'}
-                style={{ padding: 0, width: 24, height: 24 }}
-              />
-            </Tooltip>
+                <Tooltip title={prompt.isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={
+                      prompt.isFavorite ? (
+                        <StarFilled style={{ color: '#faad14', fontSize: 16 }} />
+                      ) : (
+                        <StarOutlined style={{ color: token.colorTextSecondary, fontSize: 16 }} />
+                      )
+                    }
+                    onClick={handleFavoriteClick}
+                    aria-label={prompt.isFavorite ? 'Unfavorite' : 'Favorite'}
+                    style={{ padding: 0, width: 24, height: 24 }}
+                  />
+                </Tooltip>
+              </>
+            ) : (
+              <>
+                {prompt.isFavorite && (
+                  <StarFilled style={{ color: '#faad14', fontSize: 16 }} />
+                )}
+                {prompt.isPinned && (
+                  <PushpinFilled style={{ color: token.colorPrimary, fontSize: 16 }} />
+                )}
+              </>
+            )}
 
             <Text
               strong
@@ -259,12 +274,12 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
               showLabel={true}
             />
 
-            <Dropdown
-              menu={{ items: overflowMenuItems }}
-              trigger={['click']}
-              placement="bottomRight"
-            >
-              <Tooltip title="More prompt options">
+            {isAuthenticated && (
+              <Dropdown
+                menu={{ items: overflowMenuItems }}
+                trigger={['click']}
+                placement="bottomRight"
+              >
                 <Button
                   type="text"
                   size="small"
@@ -272,8 +287,8 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
                   aria-label="More actions"
                   style={{ padding: '0 4px', color: token.colorTextSecondary }}
                 />
-              </Tooltip>
-            </Dropdown>
+              </Dropdown>
+            )}
           </Flex>
         </Flex>
 
@@ -299,7 +314,7 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
           gap={8}
           style={{ paddingLeft: 34 }}
         >
-          <Space direction="horizontal" size={6} wrap>
+          <Space orientation="horizontal" size={6} wrap>
             {prompt.category && (
               <Tag
                 icon={<FolderOutlined />}
@@ -346,14 +361,12 @@ export const PromptListItem: React.FC<PromptListItemProps> = ({
             ))}
           </Space>
 
-          <Space direction="horizontal" size={14}>
+          <Space orientation="horizontal" size={14}>
             {prompt.copyCount > 0 && (
-              <Tooltip title="Total times copied to clipboard">
-                <Text type="secondary" style={{ fontSize: 12, cursor: 'pointer' }}>
-                  <CheckCircleOutlined style={{ marginRight: 4 }} />
-                  Copied {prompt.copyCount} time{prompt.copyCount > 1 ? 's' : ''}
-                </Text>
-              </Tooltip>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                <CheckCircleOutlined style={{ marginRight: 4 }} />
+                Copied {prompt.copyCount} time{prompt.copyCount > 1 ? 's' : ''}
+              </Text>
             )}
 
             <Tooltip title={`Last modified on ${new Date(prompt.updatedAt).toLocaleString()}`}>

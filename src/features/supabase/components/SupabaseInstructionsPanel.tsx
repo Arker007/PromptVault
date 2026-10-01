@@ -24,7 +24,7 @@ export const SupabaseInstructionsPanel: React.FC = () => {
         </Text>
       </Flex>
 
-      <Space direction="vertical" size={10} style={{ width: '100%' }}>
+      <Space orientation="vertical" size={10} style={{ width: '100%' }}>
         <Flex align="start" gap={8}>
           <Tag color="blue" style={{ margin: 0, minWidth: 20, textAlign: 'center' }}>
             1

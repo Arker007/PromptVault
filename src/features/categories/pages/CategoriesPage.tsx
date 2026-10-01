@@ -28,10 +28,12 @@ import { PageHeader } from '@/shared/ui/PageHeader.tsx';
 import { apiClient } from '@/shared/api/apiClient.ts';
 import { CategoryItem } from '@/shared/types/index.ts';
 import { formatDate } from '@/shared/lib/formatters.ts';
+import { useAuth } from '@/features/auth/index.ts';
 
 const { Text } = Typography;
 
 export const CategoriesPage: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const { token } = theme.useToken();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -147,33 +149,35 @@ export const CategoriesPage: React.FC = () => {
         </Text>
       ),
     },
-    {
-      title: 'Actions',
-      key: 'actions',
-      align: 'right',
-      width: 120,
-      render: (_, record) => (
-        <Space direction="horizontal" size={4}>
-          <Tooltip title="Edit Category">
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => handleOpenEdit(record)}
-            />
-          </Tooltip>
-          <Tooltip title="Delete Category">
-            <Button
-              type="text"
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => setDeleteModalCategory(record)}
-            />
-          </Tooltip>
-        </Space>
-      ),
-    },
+    ...(isAuthenticated
+      ? [
+          {
+            title: 'Actions',
+            key: 'actions',
+            align: 'right' as const,
+            width: 120,
+            render: (_: any, record: CategoryItem) => (
+              <Space orientation="horizontal" size={4}>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => handleOpenEdit(record)}
+                  aria-label="Edit Category"
+                />
+                <Button
+                  type="text"
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => setDeleteModalCategory(record)}
+                  aria-label="Delete Category"
+                />
+              </Space>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -183,9 +187,11 @@ export const CategoriesPage: React.FC = () => {
         count={categories.length}
         description="Broad structural classifications for your prompt knowledge base."
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate}>
-            New Category
-          </Button>
+          isAuthenticated ? (
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate}>
+              New Category
+            </Button>
+          ) : null
         }
       />
 
@@ -216,7 +222,7 @@ export const CategoriesPage: React.FC = () => {
         onCancel={() => setModalOpen(false)}
         onOk={() => form.submit()}
         confirmLoading={saveMutation.isPending}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={form}

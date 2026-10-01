@@ -102,7 +102,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         borderBottom: `1px solid ${token.colorBorderSecondary}`,
       }}
     >
-      <Flex align="center" gap={12}>
+      {/* Left section: Mobile menu trigger */}
+      <Flex align="center" style={{ minWidth: isMobile ? 40 : 120 }}>
         {isMobile && (
           <Button
             type="text"
@@ -111,12 +112,15 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             aria-label="Open navigation menu"
           />
         )}
+      </Flex>
 
-        {/* Global Search Button / Trigger */}
+      {/* Center section: Global Search Button */}
+      <Flex justify="center" align="center" style={{ flex: 1, margin: '0 16px' }}>
         <Button
           onClick={onOpenSearch}
           style={{
-            width: isMobile ? 180 : 340,
+            width: '100%',
+            maxWidth: 420,
             height: 36,
             display: 'inline-flex',
             alignItems: 'center',
@@ -125,6 +129,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             backgroundColor: token.colorBgLayout,
             borderColor: token.colorBorderSecondary,
             padding: '0 12px',
+            borderRadius: token.borderRadius,
+            boxShadow: 'none',
           }}
         >
           <Flex align="center" gap={8} style={{ minWidth: 0 }}>
@@ -137,7 +143,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               }}
               ellipsis
             >
-              Search prompts, tags...
+              Search prompts, tags, categories...
             </Text>
           </Flex>
 
@@ -164,7 +170,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         </Button>
       </Flex>
 
-      <Flex align="center" gap={12}>
+      {/* Right section: Theme & User Account */}
+      <Flex align="center" justify="flex-end" gap={12} style={{ minWidth: isMobile ? 'auto' : 120 }}>
         {/* Quick Theme Toggle Button */}
         <Tooltip title={isDarkMode ? 'Switch to Light Theme' : 'Switch to Dark Theme'}>
           <Button
@@ -174,17 +181,6 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             aria-label={isDarkMode ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
             style={{ width: 36, height: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
           />
-        </Tooltip>
-
-        {/* Primary CTA */}
-        <Tooltip title="Create new prompt (Shortcut: N)">
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={onOpenNewPrompt}
-          >
-            {isMobile ? '' : 'New Prompt'}
-          </Button>
         </Tooltip>
 
         {/* User Dropdown */}

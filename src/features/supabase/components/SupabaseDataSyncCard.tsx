@@ -99,17 +99,15 @@ export const SupabaseDataSyncCard: React.FC<SupabaseDataSyncCardProps> = ({
       title="Supabase Database Sync & Deduplication"
       headerBordered
       extra={
-        <Space direction="horizontal" size={8}>
+        <Space orientation="horizontal" size={8}>
           {isConfigured && (
-            <Tooltip title="Inspect relational SQL DDL schema and RLS rules">
-              <Button
-                icon={<CodeOutlined />}
-                size="small"
-                onClick={onOpenSqlModal}
-              >
-                View SQL Schema
-              </Button>
-            </Tooltip>
+            <Button
+              icon={<CodeOutlined />}
+              size="small"
+              onClick={onOpenSqlModal}
+            >
+              View SQL Schema
+            </Button>
           )}
           <Tooltip title="Refresh remote database record statistics">
             <Button
@@ -160,8 +158,8 @@ export const SupabaseDataSyncCard: React.FC<SupabaseDataSyncCardProps> = ({
 
           {onDeduplicate && (
             <Popconfirm
-              title="Remove duplicate prompts?"
-              description="This will scan your library, merge duplicate prompt templates, and consolidate tag and version history."
+              title="Remove duplicate data across library?"
+              description="This will scan your library, merge duplicate categories, collections, tags, prompt templates, and consolidate version history."
               onConfirm={onDeduplicate}
               okText="Clean Duplicates"
               cancelText="Cancel"
@@ -170,7 +168,7 @@ export const SupabaseDataSyncCard: React.FC<SupabaseDataSyncCardProps> = ({
                 icon={<ClearOutlined />}
                 loading={isDeduplicating}
               >
-                Clean Duplicate Prompts
+                Clean Duplicate Data
               </Button>
             </Popconfirm>
           )}

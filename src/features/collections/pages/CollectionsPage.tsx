@@ -30,10 +30,12 @@ import { PageHeader } from '@/shared/ui/PageHeader.tsx';
 import { apiClient } from '@/shared/api/apiClient.ts';
 import { CollectionItem, CategoryItem } from '@/shared/types/index.ts';
 import { formatDate } from '@/shared/lib/formatters.ts';
+import { useAuth } from '@/features/auth/index.ts';
 
 const { Text } = Typography;
 
 export const CollectionsPage: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const { token } = theme.useToken();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -167,36 +169,37 @@ export const CollectionsPage: React.FC = () => {
         </Text>
       ),
     },
-    {
-      title: 'Actions',
-      key: 'actions',
-      align: 'right',
-      width: 120,
-      render: (_, record) => (
-        <Space direction="horizontal" size={4}>
-          <Tooltip title="Edit Collection">
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => handleOpenEdit(record)}
-            />
-          </Tooltip>
-          <Popconfirm
-            title="Delete Collection?"
-            description="Prompts in this collection will not be deleted, only unassigned from this collection."
-            okText="Delete"
-            cancelText="Cancel"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => deleteMutation.mutate(record.id)}
-          >
-            <Tooltip title="Delete Collection">
-              <Button type="text" size="small" danger icon={<DeleteOutlined />} />
-            </Tooltip>
-          </Popconfirm>
-        </Space>
-      ),
-    },
+    ...(isAuthenticated
+      ? [
+          {
+            title: 'Actions',
+            key: 'actions',
+            align: 'right' as const,
+            width: 120,
+            render: (_: any, record: CollectionItem) => (
+              <Space orientation="horizontal" size={4}>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={() => handleOpenEdit(record)}
+                  aria-label="Edit Collection"
+                />
+                <Popconfirm
+                  title="Delete Collection?"
+                  description="Prompts in this collection will not be deleted, only unassigned from this collection."
+                  okText="Delete"
+                  cancelText="Cancel"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={() => deleteMutation.mutate(record.id)}
+                >
+                  <Button type="text" size="small" danger icon={<DeleteOutlined />} aria-label="Delete Collection" />
+                </Popconfirm>
+              </Space>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -206,9 +209,11 @@ export const CollectionsPage: React.FC = () => {
         count={collections.length}
         description="Curated project, workflow, or team-specific groups of prompts."
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate}>
-            New Collection
-          </Button>
+          isAuthenticated ? (
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenCreate}>
+              New Collection
+            </Button>
+          ) : null
         }
       />
 
@@ -239,7 +244,7 @@ export const CollectionsPage: React.FC = () => {
         onCancel={() => setModalOpen(false)}
         onOk={() => form.submit()}
         confirmLoading={saveMutation.isPending}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={form}

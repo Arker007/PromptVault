@@ -132,7 +132,7 @@ export const PromptVariablesModal: React.FC<PromptVariablesModalProps> = ({
   return (
     <Modal
       title={
-        <Space direction="horizontal" size={8}>
+        <Space orientation="horizontal" size={8}>
           <Text strong style={{ fontSize: 16 }}>
             Fill Variables: {prompt.title}
           </Text>

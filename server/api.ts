@@ -127,6 +127,58 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
   }
 }
 
+// Optional Auth Middleware (allows unauthenticated guest access to public data)
+export async function optionalAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    let token = '';
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else if (req.cookies && req.cookies.pv_token) {
+      token = req.cookies.pv_token;
+    }
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
+        const db = await getDb();
+        const user = queryOne<{ id: string; email: string; display_name: string }>(
+          db,
+          'SELECT id, email, display_name FROM users WHERE id = ?',
+          [decoded.userId]
+        );
+        if (user) {
+          req.userId = user.id;
+          req.user = {
+            id: user.id,
+            email: user.email,
+            displayName: user.display_name,
+          };
+          return next();
+        }
+      } catch {
+        // Token invalid/expired - fall through to guest mode
+      }
+    }
+
+    // Guest Mode: query standard public seed user
+    const db = await getDb();
+    const defaultUser = queryOne<{ id: string }>(
+      db,
+      'SELECT id FROM users ORDER BY created_at ASC LIMIT 1',
+      []
+    );
+
+    req.userId = defaultUser ? defaultUser.id : 'usr_default_01';
+    req.user = undefined; // Guest
+    next();
+  } catch (err) {
+    req.userId = 'usr_default_01';
+    req.user = undefined;
+    next();
+  }
+}
+
 export const apiRouter = express.Router();
 
 // ================= AUTH ROUTES =================
@@ -521,7 +573,7 @@ function extractVariables(content: string): string[] {
   return Array.from(new Set(vars));
 }
 
-apiRouter.get('/prompts', requireAuth, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/prompts', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const db = await getDb();
     const userId = req.userId!;
@@ -740,7 +792,7 @@ apiRouter.get('/prompts', requireAuth, async (req: AuthRequest, res: Response) =
   }
 });
 
-apiRouter.get('/prompts/:id', requireAuth, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/prompts/:id', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const db = await getDb();
     const promptId = req.params.id;
@@ -1100,7 +1152,7 @@ apiRouter.post('/prompts/:id/restore', requireAuth, async (req: AuthRequest, res
   }
 });
 
-apiRouter.post('/prompts/:id/copy-event', requireAuth, async (req: AuthRequest, res: Response) => {
+apiRouter.post('/prompts/:id/copy-event', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const promptId = req.params.id;
     const userId = req.userId!;
@@ -1172,7 +1224,7 @@ apiRouter.post('/prompts/:id/duplicate', requireAuth, async (req: AuthRequest, r
 });
 
 // Versions API
-apiRouter.get('/prompts/:id/versions', requireAuth, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/prompts/:id/versions', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const promptId = req.params.id;
     const userId = req.userId!;
@@ -1365,7 +1417,7 @@ apiRouter.post('/prompts/bulk', requireAuth, async (req: AuthRequest, res: Respo
 });
 
 // ================= CATEGORIES =================
-apiRouter.get('/categories', requireAuth, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/categories', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const db = await getDb();
     const userId = req.userId!;
@@ -1501,7 +1553,7 @@ apiRouter.delete('/categories/:id', requireAuth, async (req: AuthRequest, res: R
 });
 
 // ================= COLLECTIONS =================
-apiRouter.get('/collections', requireAuth, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/collections', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const db = await getDb();
     const userId = req.userId!;
@@ -1620,7 +1672,7 @@ apiRouter.delete('/collections/:id', requireAuth, async (req: AuthRequest, res: 
 });
 
 // ================= TAGS =================
-apiRouter.get('/tags', requireAuth, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/tags', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const db = await getDb();
     const userId = req.userId!;
@@ -1740,7 +1792,7 @@ apiRouter.delete('/tags/:id', requireAuth, async (req: AuthRequest, res: Respons
 });
 
 // ================= GLOBAL SEARCH =================
-apiRouter.get('/search', requireAuth, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/search', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const q = (req.query.q as string)?.trim() || '';
     if (!q) {
@@ -2902,14 +2954,37 @@ apiRouter.post('/prompts/deduplicate', requireAuth, async (req: AuthRequest, res
     const result = await deduplicatePromptsForUser(userId, queryOne, queryAll, runQuery, db);
     syncUserDataToSupabase(userId, queryOne, queryAll, db);
 
+    const parts: string[] = [];
+    if (result.duplicatesRemoved > 0) {
+      parts.push(`${result.duplicatesRemoved} prompt(s)`);
+    }
+    if (result.categoriesCleaned > 0) {
+      parts.push(`${result.categoriesCleaned} category/categories`);
+    }
+    if (result.collectionsCleaned > 0) {
+      parts.push(`${result.collectionsCleaned} collection(s)`);
+    }
+    if (result.tagsCleaned > 0) {
+      parts.push(`${result.tagsCleaned} tag(s)`);
+    }
+    if (result.versionsCleaned > 0) {
+      parts.push(`${result.versionsCleaned} version(s)`);
+    }
+
+    const message =
+      parts.length > 0
+        ? `Cleaned and consolidated: ${parts.join(', ')}.`
+        : 'Your library has no duplicate items. Everything is clean and organized.';
+
     return res.json({
       success: true,
       duplicatesRemoved: result.duplicatesRemoved,
       groupsCleaned: result.groupsCleaned,
-      message:
-        result.duplicatesRemoved > 0
-          ? `Successfully identified and merged ${result.duplicatesRemoved} duplicate prompt(s) across your account & Supabase.`
-          : 'Your prompt library has no duplicate prompts.',
+      categoriesCleaned: result.categoriesCleaned,
+      collectionsCleaned: result.collectionsCleaned,
+      tagsCleaned: result.tagsCleaned,
+      versionsCleaned: result.versionsCleaned,
+      message,
     });
   } catch (err: any) {
     return res.status(500).json({ code: 'SERVER_ERROR', message: err.message });

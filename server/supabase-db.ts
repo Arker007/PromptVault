@@ -408,9 +408,18 @@ export async function syncUserDataToSupabase(
   }
 }
 
+export interface DeduplicationResult {
+  duplicatesRemoved: number;
+  groupsCleaned: number;
+  categoriesCleaned: number;
+  collectionsCleaned: number;
+  tagsCleaned: number;
+  versionsCleaned: number;
+}
+
 /**
- * Identifies and consolidates duplicate prompts (same title and content)
- * keeping the primary canonical prompt, re-linking tags and versions, and removing redundancies.
+ * Identifies and consolidates duplicate categories, collections, tags, prompts, and versions,
+ * keeping primary canonical entities, re-linking relations, and removing all redundancies.
  */
 export async function deduplicatePromptsForUser(
   userId: string,
@@ -419,28 +428,160 @@ export async function deduplicatePromptsForUser(
   runQuery: (db: any, sql: string, params?: any[]) => void,
   db: any,
   userPreferences?: string | null
-): Promise<{ duplicatesRemoved: number; groupsCleaned: number }> {
+): Promise<DeduplicationResult> {
   try {
+    let categoriesCleaned = 0;
+    let collectionsCleaned = 0;
+    let tagsCleaned = 0;
+    let versionsCleaned = 0;
+    let duplicatesRemoved = 0;
+    let groupsCleaned = 0;
+
+    const categoryIdsToDelete: string[] = [];
+    const collectionIdsToDelete: string[] = [];
+    const tagIdsToDelete: string[] = [];
+    const promptIdsToDelete: string[] = [];
+
+    // 1. Deduplicate Categories (by case-insensitive trimmed name)
+    const allCategories = queryAll(
+      db,
+      'SELECT id, name, description, created_at FROM categories WHERE user_id = ? ORDER BY created_at ASC',
+      [userId]
+    );
+    const catMap = new Map<string, any[]>();
+    for (const c of allCategories) {
+      const key = (c.name || '').trim().toLowerCase();
+      if (!key) continue;
+      if (!catMap.has(key)) catMap.set(key, []);
+      catMap.get(key)!.push(c);
+    }
+
+    for (const [_key, catGroup] of catMap.entries()) {
+      if (catGroup.length > 1) {
+        // Keep the canonical one (first created or with most description)
+        const canonical = catGroup[0];
+        const duplicates = catGroup.slice(1);
+
+        for (const dup of duplicates) {
+          categoryIdsToDelete.push(dup.id);
+          categoriesCleaned++;
+
+          // Re-link prompts pointing to this duplicate category
+          runQuery(
+            db,
+            'UPDATE prompts SET category_id = ? WHERE category_id = ? AND user_id = ?',
+            [canonical.id, dup.id, userId]
+          );
+
+          // Re-link collections pointing to this duplicate category
+          runQuery(
+            db,
+            'UPDATE collections SET category_id = ? WHERE category_id = ? AND user_id = ?',
+            [canonical.id, dup.id, userId]
+          );
+
+          // Delete duplicate category
+          runQuery(db, 'DELETE FROM categories WHERE id = ?', [dup.id]);
+        }
+      }
+    }
+
+    // 2. Deduplicate Collections (by case-insensitive trimmed name)
+    const allCollections = queryAll(
+      db,
+      'SELECT id, name, description, category_id, created_at FROM collections WHERE user_id = ? ORDER BY created_at ASC',
+      [userId]
+    );
+    const colMap = new Map<string, any[]>();
+    for (const col of allCollections) {
+      const key = (col.name || '').trim().toLowerCase();
+      if (!key) continue;
+      if (!colMap.has(key)) colMap.set(key, []);
+      colMap.get(key)!.push(col);
+    }
+
+    for (const [_key, colGroup] of colMap.entries()) {
+      if (colGroup.length > 1) {
+        const canonical = colGroup[0];
+        const duplicates = colGroup.slice(1);
+
+        for (const dup of duplicates) {
+          collectionIdsToDelete.push(dup.id);
+          collectionsCleaned++;
+
+          // Re-link prompts pointing to this duplicate collection
+          runQuery(
+            db,
+            'UPDATE prompts SET collection_id = ? WHERE collection_id = ? AND user_id = ?',
+            [canonical.id, dup.id, userId]
+          );
+
+          // Delete duplicate collection
+          runQuery(db, 'DELETE FROM collections WHERE id = ?', [dup.id]);
+        }
+      }
+    }
+
+    // 3. Deduplicate Tags (by case-insensitive trimmed name)
+    const allTags = queryAll(
+      db,
+      'SELECT id, name, created_at FROM tags WHERE user_id = ? ORDER BY created_at ASC',
+      [userId]
+    );
+    const tagMap = new Map<string, any[]>();
+    for (const t of allTags) {
+      const key = (t.name || '').trim().toLowerCase();
+      if (!key) continue;
+      if (!tagMap.has(key)) tagMap.set(key, []);
+      tagMap.get(key)!.push(t);
+    }
+
+    for (const [_key, tagGroup] of tagMap.entries()) {
+      if (tagGroup.length > 1) {
+        const canonical = tagGroup[0];
+        const duplicates = tagGroup.slice(1);
+
+        for (const dup of duplicates) {
+          tagIdsToDelete.push(dup.id);
+          tagsCleaned++;
+
+          // Migrate prompt_tags from duplicate tag to canonical tag
+          const affectedPrompts = queryAll(
+            db,
+            'SELECT prompt_id FROM prompt_tags WHERE tag_id = ?',
+            [dup.id]
+          );
+          for (const ap of affectedPrompts) {
+            runQuery(
+              db,
+              'INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id) VALUES (?, ?)',
+              [ap.prompt_id, canonical.id]
+            );
+          }
+
+          runQuery(db, 'DELETE FROM prompt_tags WHERE tag_id = ?', [dup.id]);
+          runQuery(db, 'DELETE FROM tags WHERE id = ?', [dup.id]);
+        }
+      }
+    }
+
+    // 4. Deduplicate Prompts (by title and content)
     const allPrompts = queryAll(
       db,
       'SELECT id, title, content, copy_count, created_at, updated_at FROM prompts WHERE user_id = ? ORDER BY updated_at DESC',
       [userId]
     );
 
-    const map = new Map<string, any[]>();
+    const promptMap = new Map<string, any[]>();
     for (const p of allPrompts) {
       const key = `${(p.title || '').trim().toLowerCase()}|||${(p.content || '').trim()}`;
-      if (!map.has(key)) {
-        map.set(key, []);
+      if (!promptMap.has(key)) {
+        promptMap.set(key, []);
       }
-      map.get(key)!.push(p);
+      promptMap.get(key)!.push(p);
     }
 
-    let duplicatesRemoved = 0;
-    let groupsCleaned = 0;
-    const idsToDelete: string[] = [];
-
-    for (const [_key, group] of map.entries()) {
+    for (const [_key, group] of promptMap.entries()) {
       if (group.length > 1) {
         groupsCleaned++;
         // Sort: highest copy count first, then most recently updated
@@ -455,24 +596,32 @@ export async function deduplicatePromptsForUser(
         const duplicates = group.slice(1);
 
         for (const dup of duplicates) {
-          idsToDelete.push(dup.id);
+          promptIdsToDelete.push(dup.id);
           duplicatesRemoved++;
 
           // Migrate tags to canonical prompt
           const dupTags = queryAll(db, 'SELECT tag_id FROM prompt_tags WHERE prompt_id = ?', [dup.id]);
           for (const dt of dupTags) {
-            runQuery(db, 'INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id) VALUES (?, ?)', [canonical.id, dt.tag_id]);
+            runQuery(
+              db,
+              'INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id) VALUES (?, ?)',
+              [canonical.id, dt.tag_id]
+            );
           }
 
           // Re-link versions to canonical prompt
-          runQuery(db, 'UPDATE prompt_versions SET prompt_id = ? WHERE prompt_id = ?', [canonical.id, dup.id]);
+          runQuery(
+            db,
+            'UPDATE prompt_versions SET prompt_id = ? WHERE prompt_id = ?',
+            [canonical.id, dup.id]
+          );
           runQuery(db, 'DELETE FROM prompt_tags WHERE prompt_id = ?', [dup.id]);
           runQuery(db, 'DELETE FROM prompts WHERE id = ?', [dup.id]);
         }
       }
     }
 
-    // Clean duplicate versions pointing to the same prompt
+    // 5. Clean duplicate versions pointing to the same prompt
     const allVersions = queryAll(
       db,
       `SELECT pv.id, pv.prompt_id, pv.version_number, pv.content 
@@ -497,34 +646,70 @@ export async function deduplicatePromptsForUser(
         const toDelete = vIds.slice(1);
         for (const id of toDelete) {
           runQuery(db, 'DELETE FROM prompt_versions WHERE id = ?', [id]);
+          versionsCleaned++;
         }
       }
     }
 
-    // Delete redundant prompt records from Supabase PostgreSQL as well
-    if (idsToDelete.length > 0) {
-      let prefs = userPreferences;
-      if (prefs === undefined) {
-        const userRow = queryOne(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
-        prefs = userRow?.preferences;
-      }
-      const config = getEffectiveSupabaseConfig(prefs);
-      if (config.supabaseUrl && config.supabaseKey) {
-        const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
-        if (client) {
-          try {
-            await client.from('prompts').delete().in('id', idsToDelete).eq('user_id', userId);
-          } catch (e: any) {
-            console.warn('Supabase deduplication delete notice:', e.message);
+    // 6. Clean orphaned prompt_tags links
+    runQuery(
+      db,
+      'DELETE FROM prompt_tags WHERE prompt_id NOT IN (SELECT id FROM prompts WHERE user_id = ?)',
+      [userId]
+    );
+    runQuery(
+      db,
+      'DELETE FROM prompt_tags WHERE tag_id NOT IN (SELECT id FROM tags WHERE user_id = ?)',
+      [userId]
+    );
+
+    // 7. Delete redundant records from Supabase PostgreSQL if configured
+    let prefs = userPreferences;
+    if (prefs === undefined) {
+      const userRow = queryOne(db, 'SELECT preferences FROM users WHERE id = ?', [userId]);
+      prefs = userRow?.preferences;
+    }
+    const config = getEffectiveSupabaseConfig(prefs);
+    if (config.supabaseUrl && config.supabaseKey) {
+      const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+      if (client) {
+        try {
+          if (categoryIdsToDelete.length > 0) {
+            await client.from('categories').delete().in('id', categoryIdsToDelete).eq('user_id', userId);
           }
+          if (collectionIdsToDelete.length > 0) {
+            await client.from('collections').delete().in('id', collectionIdsToDelete).eq('user_id', userId);
+          }
+          if (tagIdsToDelete.length > 0) {
+            await client.from('tags').delete().in('id', tagIdsToDelete).eq('user_id', userId);
+          }
+          if (promptIdsToDelete.length > 0) {
+            await client.from('prompts').delete().in('id', promptIdsToDelete).eq('user_id', userId);
+          }
+        } catch (e: any) {
+          console.warn('Supabase deduplication delete notice:', e.message);
         }
       }
     }
 
-    return { duplicatesRemoved, groupsCleaned };
+    return {
+      duplicatesRemoved,
+      groupsCleaned,
+      categoriesCleaned,
+      collectionsCleaned,
+      tagsCleaned,
+      versionsCleaned,
+    };
   } catch (err: any) {
     console.warn('Deduplication notice:', err.message);
-    return { duplicatesRemoved: 0, groupsCleaned: 0 };
+    return {
+      duplicatesRemoved: 0,
+      groupsCleaned: 0,
+      categoriesCleaned: 0,
+      collectionsCleaned: 0,
+      tagsCleaned: 0,
+      versionsCleaned: 0,
+    };
   }
 }
 

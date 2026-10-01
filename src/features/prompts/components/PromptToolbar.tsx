@@ -172,7 +172,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
             backdropFilter: 'blur(8px)',
           }}
         >
-          <Space direction="horizontal" size={10}>
+          <Space orientation="horizontal" size={10}>
             <Badge
               count={selectedCount}
               style={{
@@ -197,7 +197,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
             }}
           />
 
-          <Space direction="horizontal" size={8}>
+          <Space orientation="horizontal" size={8}>
             {!isArchivedView && (
               <>
                 <Button

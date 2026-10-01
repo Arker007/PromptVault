@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Input, Typography, Flex, Space, Tag, Empty, Spin, theme, List } from 'antd';
+import { Modal, Input, Typography, Flex, Space, Tag, Empty, Spin, theme } from 'antd';
 import {
   SearchOutlined,
   FileTextOutlined,
@@ -125,8 +125,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
       />
 
       {loading && (
-        <Flex justify="center" align="center" style={{ padding: '32px 0' }}>
-          <Spin />
+        <Flex justify="center" align="center" style={{ padding: '36px 0' }}>
+          <Spin tip="Searching knowledge base..." delay={150} />
         </Flex>
       )}
 
@@ -146,15 +146,11 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
               <Text strong type="secondary" style={{ fontSize: 11, letterSpacing: '0.05em' }}>
                 PROMPTS ({results.prompts.length})
               </Text>
-              <List
-                dataSource={results.prompts}
-                rowKey="id"
-                split={false}
-                style={{ marginTop: 4 }}
-                renderItem={(p) => (
-                  <SearchResultRow onClick={() => onSelectPrompt(p.id)} padding="8px 12px">
+              <Flex vertical gap={4} style={{ marginTop: 4 }}>
+                {results.prompts.map((p) => (
+                  <SearchResultRow key={p.id} onClick={() => onSelectPrompt(p.id)} padding="8px 12px">
                     <Flex justify="space-between" align="center">
-                      <Space direction="horizontal" size={8}>
+                      <Space orientation="horizontal" size={8}>
                         <FileTextOutlined style={{ color: token.colorPrimary }} />
                         <Text strong style={{ fontSize: 13, color: token.colorText }}>
                           {p.title}
@@ -191,8 +187,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                       </Text>
                     )}
                   </SearchResultRow>
-                )}
-              />
+                ))}
+              </Flex>
             </div>
           )}
 
@@ -202,20 +198,16 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
               <Text strong type="secondary" style={{ fontSize: 11, letterSpacing: '0.05em' }}>
                 CATEGORIES ({results.categories.length})
               </Text>
-              <List
-                dataSource={results.categories}
-                rowKey="id"
-                split={false}
-                style={{ marginTop: 4 }}
-                renderItem={(c) => (
-                  <SearchResultRow onClick={() => onSelectCategory(c.id)} padding="6px 12px">
-                    <Space direction="horizontal" size={8}>
+              <Flex vertical gap={4} style={{ marginTop: 4 }}>
+                {results.categories.map((c) => (
+                  <SearchResultRow key={c.id} onClick={() => onSelectCategory(c.id)} padding="6px 12px">
+                    <Space orientation="horizontal" size={8}>
                       <FolderOutlined style={{ color: token.colorTextSecondary }} />
                       <Text style={{ fontSize: 13, color: token.colorText }}>{c.name}</Text>
                     </Space>
                   </SearchResultRow>
-                )}
-              />
+                ))}
+              </Flex>
             </div>
           )}
 
@@ -225,20 +217,16 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
               <Text strong type="secondary" style={{ fontSize: 11, letterSpacing: '0.05em' }}>
                 COLLECTIONS ({results.collections.length})
               </Text>
-              <List
-                dataSource={results.collections}
-                rowKey="id"
-                split={false}
-                style={{ marginTop: 4 }}
-                renderItem={(col) => (
-                  <SearchResultRow onClick={() => onSelectCollection(col.id)} padding="6px 12px">
-                    <Space direction="horizontal" size={8}>
+              <Flex vertical gap={4} style={{ marginTop: 4 }}>
+                {results.collections.map((col) => (
+                  <SearchResultRow key={col.id} onClick={() => onSelectCollection(col.id)} padding="6px 12px">
+                    <Space orientation="horizontal" size={8}>
                       <AppstoreOutlined style={{ color: token.colorTextSecondary }} />
                       <Text style={{ fontSize: 13, color: token.colorText }}>{col.name}</Text>
                     </Space>
                   </SearchResultRow>
-                )}
-              />
+                ))}
+              </Flex>
             </div>
           )}
 
