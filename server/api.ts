@@ -12,7 +12,7 @@ import {
   getSupabaseSchemaSql,
   ensureBucketExists,
 } from './supabase.js';
-import { syncUserDataToSupabase } from './supabase-db.js';
+import { syncUserDataToSupabase, pullUserDataFromSupabase } from './supabase-db.js';
 
 const upload = multer({
   limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
@@ -71,11 +71,36 @@ export async function requireAuth(req: AuthRequest, res: Response, next: NextFun
 
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
     const db = await getDb();
-    const user = queryOne<{ id: string; email: string; display_name: string; preferences: string }>(
+    let user = queryOne<{ id: string; email: string; display_name: string; preferences: string }>(
       db,
       'SELECT id, email, display_name, preferences FROM users WHERE id = ?',
       [decoded.userId]
     );
+
+    if (!user) {
+      // Check if user is in Supabase!
+      const config = getEffectiveSupabaseConfig();
+      if (config.supabaseUrl && config.supabaseKey) {
+        const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+        if (client) {
+          const { data: supabaseUser } = await client
+            .from('users')
+            .select('*')
+            .eq('id', decoded.userId)
+            .maybeSingle();
+
+          if (supabaseUser) {
+            await pullUserDataFromSupabase(supabaseUser.id, queryOne, runQuery, db);
+            // Re-query user
+            user = queryOne<{ id: string; email: string; display_name: string; preferences: string }>(
+              db,
+              'SELECT id, email, display_name, preferences FROM users WHERE id = ?',
+              [decoded.userId]
+            );
+          }
+        }
+      }
+    }
 
     if (!user) {
       return res.status(401).json({ code: 'UNAUTHORIZED', message: 'User not found or session invalid' });
@@ -104,11 +129,43 @@ apiRouter.post('/auth/login', async (req: Request, res: Response) => {
     }
 
     const db = await getDb();
-    const user = queryOne<{ id: string; email: string; password_hash: string; display_name: string; preferences: string }>(
-      db,
-      'SELECT * FROM users WHERE LOWER(email) = LOWER(?)',
-      [email.trim()]
-    );
+    const config = getEffectiveSupabaseConfig();
+    const isSupabase = !!(config.supabaseUrl && config.supabaseKey);
+    let user: any = null;
+
+    if (isSupabase) {
+      const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+      if (client) {
+        const { data: supabaseUser } = await client
+          .from('users')
+          .select('*')
+          .eq('email', email.trim().toLowerCase())
+          .maybeSingle();
+
+        if (supabaseUser) {
+          user = {
+            id: supabaseUser.id,
+            email: supabaseUser.email,
+            password_hash: supabaseUser.password_hash,
+            display_name: supabaseUser.display_name,
+            preferences: typeof supabaseUser.preferences === 'string'
+              ? supabaseUser.preferences
+              : JSON.stringify(supabaseUser.preferences || {}),
+          };
+          // Sync it locally to SQLite so prompts and other queries work instantly
+          await pullUserDataFromSupabase(user.id, queryOne, runQuery, db);
+        }
+      }
+    }
+
+    if (!user) {
+      // Fallback/Local check
+      user = queryOne<{ id: string; email: string; password_hash: string; display_name: string; preferences: string }>(
+        db,
+        'SELECT * FROM users WHERE LOWER(email) = LOWER(?)',
+        [email.trim()]
+      );
+    }
 
     if (!user) {
       return res.status(401).json({ code: 'INVALID_CREDENTIALS', message: 'Invalid email or password' });
@@ -160,7 +217,27 @@ apiRouter.post('/auth/register', async (req: Request, res: Response) => {
     }
 
     const db = await getDb();
-    const existing = queryOne(db, 'SELECT id FROM users WHERE LOWER(email) = LOWER(?)', [email.trim()]);
+    let existing = queryOne(db, 'SELECT id FROM users WHERE LOWER(email) = LOWER(?)', [email.trim()]);
+
+    const config = getEffectiveSupabaseConfig();
+    const isSupabase = !!(config.supabaseUrl && config.supabaseKey);
+
+    if (!existing && isSupabase) {
+      // Check if email already exists in Supabase to prevent conflicts!
+      const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+      if (client) {
+        const { data: supabaseUser } = await client
+          .from('users')
+          .select('id')
+          .eq('email', email.trim().toLowerCase())
+          .maybeSingle();
+
+        if (supabaseUser) {
+          existing = { id: supabaseUser.id };
+        }
+      }
+    }
+
     if (existing) {
       return res.status(409).json({ code: 'CONFLICT', message: 'Email is already registered' });
     }
@@ -170,6 +247,40 @@ apiRouter.post('/auth/register', async (req: Request, res: Response) => {
     const passwordHash = bcrypt.hashSync(password, 10);
     const prefs = JSON.stringify({ theme: 'light', defaultPageSize: 25, copyNotificationDuration: 2 });
 
+    const catDevId = `cat_${Date.now()}_1`;
+    const catGeneralId = `cat_${Date.now()}_2`;
+    const tagGeneralId = `tag_${Date.now()}_1`;
+
+    if (isSupabase) {
+      const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+      if (client) {
+        // Insert into Supabase
+        const { error: userErr } = await client.from('users').insert([{
+          id: userId,
+          email: email.trim().toLowerCase(),
+          password_hash: passwordHash,
+          display_name: displayName.trim(),
+          preferences: { theme: 'light', defaultPageSize: 25, copyNotificationDuration: 2 },
+          created_at: now,
+          updated_at: now
+        }]);
+
+        if (userErr) {
+          return res.status(500).json({ code: 'SERVER_ERROR', message: `Supabase registration failed: ${userErr.message}` });
+        }
+
+        // Seed default categories/tags in Supabase
+        await client.from('categories').insert([
+          { id: catDevId, user_id: userId, name: 'General Prompts', description: 'Daily productivity and reference prompts', created_at: now, updated_at: now },
+          { id: catGeneralId, user_id: userId, name: 'Engineering', description: 'Code reviews, architecture, and debugging', created_at: now, updated_at: now }
+        ]);
+        await client.from('tags').insert([
+          { id: tagGeneralId, user_id: userId, name: 'general', created_at: now, updated_at: now }
+        ]);
+      }
+    }
+
+    // Always insert locally in SQLite as cache
     runQuery(
       db,
       'INSERT INTO users (id, email, password_hash, display_name, preferences, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -177,8 +288,6 @@ apiRouter.post('/auth/register', async (req: Request, res: Response) => {
     );
 
     // Seed a couple default starter tags and category for the new user
-    const catDevId = `cat_${Date.now()}_1`;
-    const catGeneralId = `cat_${Date.now()}_2`;
     runQuery(db, 'INSERT INTO categories (id, user_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)', [
       catDevId,
       userId,
@@ -196,7 +305,6 @@ apiRouter.post('/auth/register', async (req: Request, res: Response) => {
       now,
     ]);
 
-    const tagGeneralId = `tag_${Date.now()}_1`;
     runQuery(db, 'INSERT INTO tags (id, user_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)', [
       tagGeneralId,
       userId,
@@ -236,11 +344,41 @@ apiRouter.post('/auth/logout', (_req: Request, res: Response) => {
 apiRouter.get('/auth/me', requireAuth, async (req: AuthRequest, res: Response) => {
   try {
     const db = await getDb();
-    const user = queryOne<{ id: string; email: string; display_name: string; preferences: string; created_at: string }>(
-      db,
-      'SELECT id, email, display_name, preferences, created_at FROM users WHERE id = ?',
-      [req.userId!]
-    );
+    const config = getEffectiveSupabaseConfig();
+    const isSupabase = !!(config.supabaseUrl && config.supabaseKey);
+    let user: any = null;
+
+    if (isSupabase) {
+      const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+      if (client) {
+        const { data: supabaseUser } = await client
+          .from('users')
+          .select('*')
+          .eq('id', req.userId!)
+          .maybeSingle();
+
+        if (supabaseUser) {
+          user = {
+            id: supabaseUser.id,
+            email: supabaseUser.email,
+            display_name: supabaseUser.display_name,
+            preferences: typeof supabaseUser.preferences === 'string'
+              ? supabaseUser.preferences
+              : JSON.stringify(supabaseUser.preferences || {}),
+            created_at: supabaseUser.created_at,
+          };
+        }
+      }
+    }
+
+    if (!user) {
+      user = queryOne<{ id: string; email: string; display_name: string; preferences: string; created_at: string }>(
+        db,
+        'SELECT id, email, display_name, preferences, created_at FROM users WHERE id = ?',
+        [req.userId!]
+      );
+    }
+
     if (!user) {
       return res.status(404).json({ code: 'NOT_FOUND', message: 'User not found' });
     }
@@ -279,6 +417,23 @@ apiRouter.patch('/auth/profile', requireAuth, async (req: AuthRequest, res: Resp
     } catch {}
 
     const newPrefs = preferences ? { ...currentPrefs, ...preferences } : currentPrefs;
+
+    const config = getEffectiveSupabaseConfig();
+    const isSupabase = !!(config.supabaseUrl && config.supabaseKey);
+
+    if (isSupabase) {
+      const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+      if (client) {
+        await client
+          .from('users')
+          .update({
+            display_name: displayName ? displayName.trim() : req.user!.displayName,
+            preferences: newPrefs,
+            updated_at: now,
+          })
+          .eq('id', req.userId!);
+      }
+    }
 
     if (displayName) {
       runQuery(db, 'UPDATE users SET display_name = ?, preferences = ?, updated_at = ? WHERE id = ?', [
@@ -327,6 +482,23 @@ apiRouter.patch('/auth/password', requireAuth, async (req: AuthRequest, res: Res
 
     const newHash = bcrypt.hashSync(newPassword, 10);
     const now = new Date().toISOString();
+
+    const config = getEffectiveSupabaseConfig();
+    const isSupabase = !!(config.supabaseUrl && config.supabaseKey);
+
+    if (isSupabase) {
+      const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+      if (client) {
+        await client
+          .from('users')
+          .update({
+            password_hash: newHash,
+            updated_at: now,
+          })
+          .eq('id', req.userId!);
+      }
+    }
+
     runQuery(db, 'UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?', [newHash, now, req.userId!]);
 
     return res.json({ success: true, message: 'Password updated successfully' });

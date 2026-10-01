@@ -69,12 +69,18 @@ export function useAuth() {
   const updateProfileMutation = useMutation({
     mutationFn: (data: { displayName?: string; preferences?: Record<string, any> }) =>
       authApi.updateProfile(data),
-    onSuccess: (res) => {
+    onSuccess: (res, variables) => {
       queryClient.setQueryData(authKeys.me, res.user);
-      message.success('Preferences saved');
+      if (variables.displayName && variables.preferences) {
+        message.success('Profile and preferences updated successfully');
+      } else if (variables.displayName) {
+        message.success('Profile name updated successfully');
+      } else {
+        message.success('Preferences saved successfully');
+      }
     },
     onError: (err: any) => {
-      message.error(err.message || 'Failed to update preferences');
+      message.error(err.message || 'Failed to update profile');
     },
   });
 

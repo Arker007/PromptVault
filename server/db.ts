@@ -160,7 +160,7 @@ function seedInitialData(db: Database) {
   db.run(
     `INSERT INTO users (id, email, password_hash, display_name, preferences, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [userId, 'user@promptvault.local', passwordHash, 'Alex Morgan', JSON.stringify({ theme: 'light', defaultPageSize: 25, copyNotificationDuration: 2 }), now, now]
+    [userId, 'user@promptvault.local', passwordHash, 'Vishal Sharma', JSON.stringify({ theme: 'light', defaultPageSize: 25, copyNotificationDuration: 2 }), now, now]
   );
 
   // Categories

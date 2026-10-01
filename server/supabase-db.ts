@@ -389,3 +389,142 @@ export async function syncUserDataToSupabase(
     console.warn('Auto-sync to Supabase database notice:', err.message);
   }
 }
+
+export async function pullUserDataFromSupabase(
+  userId: string,
+  queryOne: (db: any, sql: string, params?: any[]) => any,
+  runQuery: (db: any, sql: string, params?: any[]) => void,
+  db: any
+): Promise<boolean> {
+  try {
+    const config = getEffectiveSupabaseConfig();
+    if (!config.supabaseUrl || !config.supabaseKey) return false;
+
+    const client = createSupabaseClient(config.supabaseUrl, config.supabaseKey);
+    if (!client) return false;
+
+    // 1. Fetch user from Supabase
+    const { data: user, error: userErr } = await client
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (userErr || !user) return false;
+
+    // 2. Fetch other entities from Supabase
+    const [categoriesRes, collectionsRes, tagsRes, promptsRes, promptVersionsRes] = await Promise.all([
+      client.from('categories').select('*').eq('user_id', userId),
+      client.from('collections').select('*').eq('user_id', userId),
+      client.from('tags').select('*').eq('user_id', userId),
+      client.from('prompts').select('*').eq('user_id', userId),
+      client.from('prompt_versions').select('*, prompts!inner(user_id)').eq('prompts.user_id', userId),
+    ]);
+
+    // Also need prompt_tags
+    let promptTags: any[] = [];
+    const promptIds = (promptsRes.data || []).map((p) => p.id);
+    if (promptIds.length > 0) {
+      const { data: ptData } = await client
+        .from('prompt_tags')
+        .select('*')
+        .in('prompt_id', promptIds);
+      promptTags = ptData || [];
+    }
+
+    // 3. Populate SQLite Database
+    // Insert/Update User
+    const userPrefsStr = JSON.stringify(user.preferences || {});
+    runQuery(
+      db,
+      'INSERT OR REPLACE INTO users (id, email, password_hash, display_name, preferences, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [user.id, user.email, user.password_hash, user.display_name, userPrefsStr, user.created_at, user.updated_at]
+    );
+
+    // Insert/Update Categories
+    if (categoriesRes.data) {
+      for (const cat of categoriesRes.data) {
+        runQuery(
+          db,
+          'INSERT OR REPLACE INTO categories (id, user_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+          [cat.id, cat.user_id, cat.name, cat.description || null, cat.created_at, cat.updated_at]
+        );
+      }
+    }
+
+    // Insert/Update Collections
+    if (collectionsRes.data) {
+      for (const col of collectionsRes.data) {
+        runQuery(
+          db,
+          'INSERT OR REPLACE INTO collections (id, user_id, category_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [col.id, col.user_id, col.category_id || null, col.name, col.description || null, col.created_at, col.updated_at]
+        );
+      }
+    }
+
+    // Insert/Update Tags
+    if (tagsRes.data) {
+      for (const tag of tagsRes.data) {
+        runQuery(
+          db,
+          'INSERT OR REPLACE INTO tags (id, user_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+          [tag.id, tag.user_id, tag.name, tag.created_at, tag.updated_at]
+        );
+      }
+    }
+
+    // Insert/Update Prompts
+    if (promptsRes.data) {
+      for (const p of promptsRes.data) {
+        runQuery(
+          db,
+          `INSERT OR REPLACE INTO prompts (id, user_id, category_id, collection_id, title, description, content, is_favorite, is_pinned, is_archived, copy_count, last_copied_at, last_viewed_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            p.id,
+            p.user_id,
+            p.category_id || null,
+            p.collection_id || null,
+            p.title,
+            p.description || null,
+            p.content,
+            p.is_favorite ? 1 : 0,
+            p.is_pinned ? 1 : 0,
+            p.is_archived ? 1 : 0,
+            p.copy_count || 0,
+            p.last_copied_at || null,
+            p.last_viewed_at || null,
+            p.created_at,
+            p.updated_at,
+          ]
+        );
+      }
+    }
+
+    // Insert/Update Prompt Tags
+    for (const pt of promptTags) {
+      runQuery(
+        db,
+        'INSERT OR IGNORE INTO prompt_tags (prompt_id, tag_id) VALUES (?, ?)',
+        [pt.prompt_id, pt.tag_id]
+      );
+    }
+
+    // Insert/Update Prompt Versions
+    if (promptVersionsRes.data) {
+      for (const pv of promptVersionsRes.data) {
+        runQuery(
+          db,
+          'INSERT OR REPLACE INTO prompt_versions (id, prompt_id, version_number, title, description, content, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [pv.id, pv.prompt_id, pv.version_number, pv.title, pv.description || null, pv.content, pv.created_at]
+        );
+      }
+    }
+
+    return true;
+  } catch (err: any) {
+    console.warn('Auto-pull from Supabase database error:', err.message);
+    return false;
+  }
+}
