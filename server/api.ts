@@ -2088,8 +2088,22 @@ apiRouter.post('/import', requireAuth, async (req: AuthRequest, res: Response) =
 // ================= SUPABASE STORAGE & BACKUP ROUTES =================
 
 // 1. Get Supabase Configuration
-apiRouter.get('/supabase/config', requireAuth, async (req: AuthRequest, res: Response) => {
+apiRouter.get('/supabase/config', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.json({
+        supabaseUrl: '',
+        supabaseKey: '',
+        isKeySet: false,
+        backupBucket: 'promptvault-backups',
+        assetBucket: 'promptvault-assets',
+        autoBackupEnabled: false,
+        autoBackupFrequency: 'daily',
+        autoFetchFromSupabase: false,
+        lastFetchedAt: null,
+      });
+    }
+
     const db = await getDb();
     const user = queryOne<{ preferences: string }>(db, 'SELECT preferences FROM users WHERE id = ?', [req.userId]);
     const config = getEffectiveSupabaseConfig(user?.preferences);

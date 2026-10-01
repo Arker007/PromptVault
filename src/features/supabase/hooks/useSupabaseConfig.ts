@@ -1,14 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabaseApi } from '../api/supabaseApi.ts';
 import { message } from '@/shared/lib/message.ts';
+import { useAuth } from '@/features/auth/index.ts';
 import type { SupabaseConfigData } from '../types/index.ts';
 
 export const useSupabaseConfig = () => {
   const queryClient = useQueryClient();
+  const { isAuthenticated } = useAuth();
 
   const configQuery = useQuery<SupabaseConfigData>({
     queryKey: ['supabase-config'],
     queryFn: supabaseApi.getConfig,
+    enabled: isAuthenticated,
   });
 
   const saveConfigMutation = useMutation({

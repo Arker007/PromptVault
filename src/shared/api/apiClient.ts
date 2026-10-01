@@ -41,8 +41,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     if (res.status === 401) {
       authStorage.removeToken();
-      // Only redirect if not already on /login
-      if (window.location.pathname !== '/login') {
+      // Only redirect to login if currently accessing protected routes
+      if (window.location.pathname.startsWith('/settings')) {
         window.location.href = '/login?expired=1';
       }
     }
