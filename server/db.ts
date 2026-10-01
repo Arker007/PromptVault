@@ -3,7 +3,8 @@ import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcryptjs';
 
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+const isVercel = process.env.VERCEL === '1' || !!process.env.VERCEL;
+const DATA_DIR = isVercel ? '/tmp/data' : path.resolve(process.cwd(), 'data');
 const DB_FILE = path.resolve(DATA_DIR, 'promptvault.sqlite');
 
 let dbInstance: Database | null = null;
