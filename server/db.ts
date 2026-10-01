@@ -18,7 +18,18 @@ export async function getDb(): Promise<Database> {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 
-  const SQL = await initSqlJs();
+  let wasmBinary: ArrayBuffer | undefined = undefined;
+  try {
+    const wasmPath = path.resolve(process.cwd(), 'node_modules/sql.js/dist/sql-wasm.wasm');
+    if (fs.existsSync(wasmPath)) {
+      const buffer = fs.readFileSync(wasmPath);
+      wasmBinary = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    }
+  } catch (err) {
+    console.warn('Could not read sql-wasm.wasm file directly:', err);
+  }
+
+  const SQL = await initSqlJs(wasmBinary ? { wasmBinary } : undefined);
   if (fs.existsSync(DB_FILE)) {
     const fileBuffer = fs.readFileSync(DB_FILE);
     dbInstance = new SQL.Database(fileBuffer);
